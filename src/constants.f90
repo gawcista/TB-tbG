@@ -25,7 +25,7 @@ module constants
     logical, parameter :: calc_iqr = .false.
     real(prec), parameter :: delta = 1e-3 ! broadening
     real(prec) :: efermi = 0.0
-    real(prec), parameter :: temperature = 300
+    real(prec) :: temperature = 300
     ! decay constants
     real(prec), parameter :: f_decay = log(0.1_prec)/(a_d-a0)
     real(prec), parameter :: q_sigma = d0 * f_decay

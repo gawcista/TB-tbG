@@ -61,6 +61,8 @@ contains
                             read(line,*,iostat=io) tmp,q_tag
                         case ('EFERMI')
                             read(line,*,iostat=io) tmp,efermi
+                        case ('TEMPERATURE')
+                            read(line,*,iostat=io) tmp,temperature
                     
                     end select                        
                                  

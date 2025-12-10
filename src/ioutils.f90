@@ -248,6 +248,7 @@ contains
         nqpts = size(q_list_cart,1)
         if (present(filename)) fout = filename
         write(*,"(A,1X,A)") "[IO] Wrinting EELS data to file:",fout
+        
         open(unit, file=fout, status='replace', action='write')
             do iq = 1,nqpts
                 do iomega = 1,nomega

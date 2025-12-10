@@ -6,10 +6,11 @@ contains
         real(prec):: E,f
         real(prec), optional :: Ef,T
         real (prec) :: E_fermi
-        real (prec) :: temp = temperature
+        real (prec) :: temp
         
         E_fermi = efermi
-        if (present(Ef)) E_fermi=Ef
+        temp = temperature
+        if (present(Ef)) E_fermi = Ef
         if (present(T)) temp = T
         f = 1._prec/(exp((E-E_fermi)/(k_B*temp)) + 1._prec)
 
@@ -72,7 +73,7 @@ contains
                 delta_E = eig_k(iband_k) - eig_kq(iband_kq)
                 do i = 1, nomega
                 resultlist(i) = resultlist(i) + real(conjg(M(iband_kq, iband_k)) * M(iband_kq, iband_k), prec) *&
-                                delta_f / (cmplx(delta_E+omegalist(i),-delta,prec))
+                                delta_f / (cmplx(delta_E+omegalist(i),delta,prec))
                 end do
             end do
         end do
@@ -133,7 +134,7 @@ contains
         if (.not. allocated(resultlist)) allocate(resultlist(nomega,nqpts))
         do iq = 1, nqpts
             do iomega = 1, nomega
-                epsilon = 1._prec + V_q(q_list_cart(iq,:)) * IPF(iomega,iq)
+                epsilon = 1._prec - V_q(q_list_cart(iq,:)) * IPF(iomega,iq)
                 resultlist(iomega,iq) = - imag(1._prec/epsilon)
             end do
         end do
