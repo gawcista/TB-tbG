@@ -63,6 +63,8 @@ contains
                             read(line,*,iostat=io) tmp,efermi
                         case ('TEMPERATURE')
                             read(line,*,iostat=io) tmp,temperature
+                        case ('DELTA')
+                            read(line,*,iostat=io) tmp,delta
                     
                     end select                        
                                  

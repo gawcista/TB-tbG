@@ -17,7 +17,7 @@ contains
     end function Fermi_Dirac
 
     function V_q(q) result(V)
-        ! return -e²/((2pi)^2*ϵ₀*ϵ_r*q)
+        ! return e²/((2pi)^2*ϵ₀*ϵ_r*q)
         use constants, only:elec,epsilon_0_SI,prec,epsilon_r,pi
         real(prec) :: q(3),V,V_f,q_mod
         V_f = elec*1.e10/epsilon_0_SI ! e²/ϵ₀~45.2 eV*angstrom
@@ -73,7 +73,7 @@ contains
                 delta_E = eig_k(iband_k) - eig_kq(iband_kq)
                 do i = 1, nomega
                 resultlist(i) = resultlist(i) + real(conjg(M(iband_kq, iband_k)) * M(iband_kq, iband_k), prec) *&
-                                delta_f / (cmplx(delta_E+omegalist(i),delta,prec))
+                                delta_f / (cmplx(delta_E + omegalist(i),delta,prec))
                 end do
             end do
         end do

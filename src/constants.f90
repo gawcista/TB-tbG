@@ -23,7 +23,7 @@ module constants
     real(prec), parameter :: r_c = a0*2.5_prec ! layer distance
     ! geometric parameters (plasmon)
     logical, parameter :: calc_iqr = .false.
-    real(prec), parameter :: delta = 1e-3 ! broadening
+    real(prec) :: delta ! broadening
     real(prec) :: efermi = 0.0
     real(prec) :: temperature = 300
     ! decay constants
@@ -61,6 +61,7 @@ contains
         ncache = 0
         nomega = 21
         q_tag = "D"
+        delta = 1e-3
         call set_omegalist(0._prec,0.1_prec)
 
     end subroutine init_constants
