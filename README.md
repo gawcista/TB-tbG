@@ -1,4 +1,4 @@
-# TB-tbG: Tight-binding model for twisted bilayer graphene (MPI/Serial version)
+# TB-tbG: Tight-binding model solver for twisted bilayer graphene (MPI/Serial version)
 
 ## 1. Program Features
 
@@ -8,7 +8,7 @@ Key capabilities include:
 
 - **Band structure calculation**: Compute the electronic band structure along high-symmetry k‑paths.
 - **Electron Energy Loss Spectroscopy (EELS)**: Calculate the loss function for a given momentum transfer (q) range.
-- **MPI‑parallelized computations**: Efficiently distribute k‑point or q‑point workloads across multiple processes.
+- **MPI‑parallelized computations**: Efficiently distribute k‑point workloads across multiple processes.
 - **Flexible input system**: Configure calculations via a simple text file (`input.in`).
 - **VASP‑compatible structure input**: Read atomic positions and lattice vectors from a `POSCAR` file.
 
@@ -58,7 +58,7 @@ The code is written in modern Fortran with modular design, separating physical m
    JOB B
    FPOSCAR cont.vasp
    FEIGEN tb_band.dat
-   OMEGA 21 0.0 0.1
+   FKPOINTS KPOINTS.band
    ```
 
 ### Running the Program
@@ -87,12 +87,12 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 | **JOB** | `B` or `E` | Type of calculation:<br>`B` – Band structure<br>`E` – Electron Energy Loss Spectroscopy (EELS) |
 | **FPOSCAR** | `<filename>` | Path to the VASP‑format POSCAR file (default: `cont.vasp`) |
 | **FEIGEN** | `<filename>` | Output file for band eigenvalues (default: `tb_band.dat`). Also enables band‑structure writing. |
-| **FKPOINTS** | `<filename>` | File containing k‑point path definitions (default: `KPOINTS`). If present, enables k‑point selection. |
+| **FKPOINTS** | `<filename>` | VASP‑format file containing k‑point path definitions (default: `KPOINTS`). If present, enables k‑point selection. |
 | **IBAND** | `<iband_start> <iband_end>` | Select a specific range of bands to compute (1‑based indices). Enables band selection. |
-| **NCACHE** | `<integer>` | Cache size for intermediate arrays (default: 0 – automatic). |
+| **NCACHE** | `<integer>` | Cache size for intermediate arrays (default: 0 – automatic). This number determines how many numbers of k points would be calculated together on each rank. Less number of `ncache` reduce memory cost on each worker rank but brings higher MPI communication cost.|
 | **OMEGA** | `<nomega> <omega_i> <omega_f>` | Define the energy (frequency) mesh for the loss function:<br>`nomega` – number of points<br>`omega_i` – starting energy (eV)<br>`omega_f` – ending energy (eV) |
 | **QPOINT** | `<nqpts> <qx1 qy1 qz1> <qx2 qy2 qz2>` | Define a q‑point path for EELS:<br>`nqpts` – number of q‑points along the line<br>`(qx1, qy1, qz1)` – start point in reciprocal fractional coordinates<br>`(qx2, qy2, qz2)` – end point |
-| **QTAG** | `<character>` | Single‑character label for the q‑point set (default: `D`). Used to name output files. |
+| **QTAG** | `<character>` | Single‑character label for the q‑point set (default: `D`). `D` means the q vectors are provided in direct (fractional) coordinates; `C` specifies that q vectors are provided in a Cartesian coordinate system |
 | **EFERMI** | `<energy>` | Fermi energy in eV (default: 0.0). |
 | **TEMPERATURE** | `<T>` | Temperature in Kelvin (default: 300). |
 | **DELTA** | `<broadening>` | Broadening parameter (eV) for spectral functions (default: 1e‑3). |
@@ -103,7 +103,7 @@ JOB E
 FPOSCAR cont.vasp
 OMEGA 51 0.0 0.5
 QPOINT 20 0.0 0.0 0.0 0.1 0.1 0.0
-QTAG A
+QTAG D
 EFERMI -0.05
 TEMPERATURE 300
 DELTA 0.001
