@@ -238,7 +238,7 @@ contains
     end subroutine writeLabels
 
     subroutine writeEELS(q_list_cart,omega,eloss,filename)
-        use constants, only: nomega
+        use constants, only: nomega,temperature,delta,efermi
         real(prec), intent(in) :: q_list_cart(:,:),omega(:),eloss(:,:)
         character(len=64), intent(in), optional :: filename
         character(len=64) :: fout = 'tb_eels.dat'
@@ -250,6 +250,7 @@ contains
         write(*,"(A,1X,A)") "[IO] Wrinting EELS data to file:",fout
         
         open(unit, file=fout, status='replace', action='write')
+            write(unit,"(A,F8.4,A,F8.4,A,F8.4,A,I8)") "# T=",temperature,"; delta=",delta*1000," meV; E-fermi=",efermi," eV"
             do iq = 1,nqpts
                 do iomega = 1,nomega
                     write(unit,'(5F12.8)') q_list_cart(iq,:),omega(iomega),eloss(iomega,iq)

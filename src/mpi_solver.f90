@@ -52,7 +52,7 @@ contains
 
         if (rank == 0 .and. timer_mpi) then
             call cpu_time(t_end)
-            write(*, '(A,1X,F8.3)') "Done! Time elapsed (s): ", t_end - t_start
+            write(*, '(A,1X,F12.3)') "Done! Time elapsed (s): ", t_end - t_start
         end if
 
     end subroutine init_POSCAR_mpi
@@ -71,8 +71,17 @@ contains
         base_load = total_size / nprocs
         remainder = mod(total_size, nprocs)
         
+        ! Initialize all with base load
         counts = base_load
-        counts(1:remainder) = base_load + 1
+        
+        ! Distribute remainder tasks starting from rank 1 (index 2) to avoid giving extra to rank 0
+        if (remainder > 0) then
+            ! Rank 0 (index 1) gets base_load, rank 1 to rank remainder (indices 2 to remainder+1) get base_load + 1
+            ! Ensure we don't go beyond array bounds
+            do i = 2, remainder+1
+                counts(i) = base_load + 1
+            end do
+        end if
         
         displs(1) = 0
         do i = 2, nprocs
@@ -83,8 +92,11 @@ contains
             if (.not. allocated(ngroups)) allocate(ngroups(nproc))
             do i = 1, nprocs
                 n_groups = counts(i) / ncache
-                if (mod(counts(i), ncache) /= 0) ngroups = n_groups + 1
-                ngroups(i) = n_groups
+                if (mod(counts(i), ncache) /= 0) then
+                    ngroups(i) = n_groups + 1
+                else
+                    ngroups(i) = n_groups
+                end if
             end do
         end if
 
@@ -223,9 +235,9 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
                 if (allocated(wavef_group)) deallocate(wavef_group)
             end if
             
-            if (timer_mpi .and. igroup <= ngroups .and. mod(igroup, max(1, ngroups/10)) == 0) then
+            if (timer_mpi .and. igroup <= ngroups) then
                 call cpu_time(t_end)
-                write(*, '(4X,A,1X,I4,1X,A,I3,A,I3,1X,A,F8.3)') &
+                write(*, '(4X,A,1X,I4,1X,A,I3,A,I3,1X,A,F12.3)') &
                     "[Solver] Rank", rank, "group", igroup, "/", ngroups, &
                     "finished! CPU time:", t_end-t_mpi
             end if
@@ -233,7 +245,7 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
 
         if (timer_cpu)  then
             call cpu_time(t_end)
-            write(*, '(4X,A,1X,I4,1X,A,F8.3)') "[Solver] Calculationg on rank",rank,&
+            write(*, '(4X,A,1X,I4,1X,A,F12.3)') "[Solver] Calculationg on rank",rank,&
                                              'finished! CPU time:', t_end-t_start
         end if
 
@@ -384,9 +396,9 @@ subroutine calculate_eels_mpi(q_list,tag)
 
         if (allocated(IPF_group)) deallocate(IPF_group)
 
-        if (timer_mpi .and. igroup <= ngroups .and. mod(igroup, max(1, ngroups/10)) == 0) then
+        if (timer_mpi .and. igroup <= ngroups) then
             call cpu_time(t_end)
-            write(*, '(4X,A,1X,I4,1X,A,I3,A,I3,1X,A,F8.3)') &
+            write(*, '(4X,A,1X,I4,1X,A,I3,A,I3,1X,A,F12.3)') &
                 "[EELS] Rank", rank, "group", igroup, "/", ngroups, &
                 "finished! Time:", t_end - t_mpi
         end if
@@ -399,7 +411,7 @@ subroutine calculate_eels_mpi(q_list,tag)
         write(*,"(A,$)") "[Main] EELS calculation finished!"
         if (timer_cpu) then
             call cpu_time(t_end)
-            write(*,"(1X,A,F8.3)") 'CPU time:', t_end-t_start
+            write(*,"(1X,A,F12.3)") 'CPU time:', t_end-t_start
         else 
             write(*,*)
         end if

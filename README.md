@@ -1,6 +1,6 @@
 # TB-tbG: Tight-binding model solver for twisted bilayer graphene (MPI/Serial version)
 
-## 1. Program Features
+## 1. Features
 
 TB-tbG is a Fortran-based program designed for computing electronic properties of twisted bilayer graphene (tbG) using a tight-binding (TB) model. The program supports both MPI-parallel and serial execution.
 

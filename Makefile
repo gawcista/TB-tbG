@@ -1,7 +1,7 @@
 # Makefile for TB-tbG Fortran project
 # Compiler and flags
 FC = mpiifx
-FFLAGS = -O2 -qmkl -module build -Ibuild
+FFLAGS = -O2 -qmkl -module build -Ibuild -xHost
 LDFLAGS = -qmkl
 
 # Target executable
