@@ -65,6 +65,9 @@ contains
                             read(line,*,iostat=io) tmp,temperature
                         case ('DELTA')
                             read(line,*,iostat=io) tmp,delta
+                        case('CALC_IQR')
+                            read(line,*,iostat=io) tmp,calc_iqr
+
                     
                     end select                        
                                  

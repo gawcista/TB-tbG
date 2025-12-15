@@ -22,7 +22,7 @@ module constants
     real(prec), parameter :: l_c = 0.265_prec ! cutoff ratio (AA)
     real(prec), parameter :: r_c = a0*2.5_prec ! layer distance
     ! geometric parameters (plasmon)
-    logical, parameter :: calc_iqr = .false.
+    logical :: calc_iqr
     real(prec) :: delta ! broadening
     real(prec) :: efermi = 0.0
     real(prec) :: temperature = 300
@@ -62,6 +62,7 @@ contains
         nomega = 21
         q_tag = "D"
         delta = 1e-3
+        calc_iqr = .false.
         call set_omegalist(0._prec,0.1_prec)
 
     end subroutine init_constants
