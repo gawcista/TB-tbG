@@ -12,6 +12,21 @@ module interface
             integer, intent(out) :: info
         end subroutine zheevd
 
+        subroutine zheevr(jobz, range, uplo, n, a, lda, vl, vu, il, iu, abstol, &
+                          m, w, z, ldz, isuppz, work, lwork, rwork, lrwork, &
+                          iwork, liwork, info)
+            character*1, intent(in) :: jobz, range, uplo
+            integer, intent(in) :: n, lda, ldz, lwork, lrwork, liwork
+            complex(8), intent(inout) :: a(lda, *)
+            real(8), intent(in) :: vl, vu, abstol
+            integer, intent(in) :: il, iu
+            integer, intent(out) :: m, isuppz(*), iwork(*), info
+            real(8), intent(out) :: w(*)
+            complex(8), intent(out) :: z(ldz, *)
+            real(8), intent(out) :: rwork(*)
+            complex(8), intent(out) :: work(*)
+        end subroutine zheevr
+
         subroutine zgemm(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
             character*1, intent(in) :: transa, transb
             integer, intent(in) :: m, n, k, lda, ldb, ldc

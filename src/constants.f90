@@ -1,10 +1,10 @@
 module constants
     implicit none
-    logical, parameter, public :: timer_mpi = .true.
-    logical, parameter, public :: timer_cpu = .true.
-    logical, parameter, public :: timer_kcalc = .false.
-    logical, parameter, public :: timer_debug = .false.
-    logical, parameter, public :: write_hr = .false.
+    logical, public :: timer_mpi
+    logical, public :: timer_cpu
+    logical, public :: timer_kcalc 
+    logical, public :: timer_debug 
+    logical, public :: write_hr = .false.
     integer, parameter, public :: prec=SELECTED_REAL_KIND(15)
     real(prec), parameter, public :: pi = 3.14159265358979323846
     real(prec), parameter, public :: k_B = 8.617333262145179e-05 ! Boltzmann constant in eV/K
@@ -36,19 +36,25 @@ module constants
     logical :: kpt_select
     logical :: job_band
     logical :: write_band
+    character(len=3) :: model_type
     character(len=64) :: f_input
     character(len=64) :: f_poscar
     character(len=64) :: f_eig
     character(len=64) :: f_kpoint
+    character(len=64) :: f_wannier
     character(len=1) :: q_tag,job_type
     real(prec) :: basis(3,3), basis_rec(3,3)
     real(prec), allocatable :: position_frac(:,:), position_cart(:,:),omegalist(:),qlist(:,:)
     integer :: nk_path 
-    integer :: nions,nomega,iband(2)
+    integer :: nions,nbands,nomega,iband(2)
 
-    integer ::  rank, nproc, ncache, ierr
+    integer ::  rank, nproc, ncache
 contains
     subroutine init_constants()
+        timer_mpi = .true.
+        timer_cpu = .true.
+        timer_kcalc = .false.
+        timer_debug = .false.
         band_select = .false.
         kpt_select = .false.
         job_band = .false.
@@ -63,6 +69,8 @@ contains
         q_tag = "D"
         delta = 1e-3
         calc_iqr = .false.
+        model_type = "tbg"
+        f_wannier = 'wannier90'
         call set_omegalist(0._prec,0.1_prec)
 
     end subroutine init_constants

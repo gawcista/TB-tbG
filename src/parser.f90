@@ -46,9 +46,13 @@ contains
                         case ('FKPOINTS')
                             kpt_select = .true.
                             read(line,*,iostat=io) tmp,f_kpoint
+                        case ('FWANNIER')
+                            model_type = 'wan'
+                            read(line,*,iostat=io) tmp,f_wannier
                         case ('IBAND')
                             band_select = .true.
                             read(line,*,iostat=io) tmp,iband
+                            nbands = iband(2)-iband(1)+1
                         case ('NCACHE')
                             read(line,*,iostat=io) tmp,ncache
                         case ('OMEGA')
@@ -67,8 +71,12 @@ contains
                             read(line,*,iostat=io) tmp,delta
                         case('CALC_IQR')
                             read(line,*,iostat=io) tmp,calc_iqr
-
-                    
+                        case('TMPI')
+                            read(line,*,iostat=io) tmp,timer_mpi
+                        case('TDEBUG')
+                            read(line,*,iostat=io) tmp,timer_debug
+                        case('MODEL')
+                            read(line,*,iostat=io) tmp,model_type         
                     end select                        
                                  
                 end if

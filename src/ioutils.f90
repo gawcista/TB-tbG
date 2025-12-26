@@ -36,6 +36,7 @@ contains
             read(temp_line, *) lattice%elements
             read(unit, *) lattice%natoms
             lattice%nions = sum(lattice%natoms)
+
             allocate(lattice%atom(lattice%nions))
             read(unit, '(A)') temp_line ! read selective dynamics or coordinate type
             tag = adjustl(temp_line)
@@ -72,13 +73,18 @@ contains
     end subroutine readPOSCAR
 
     subroutine parseCrystal(lattice)
-        use types, only: crystal
+        use types, only: crystal,nbands,band_select
         use constants, only: position_cart,position_frac,nions,basis,basis_rec
         type(crystal), intent(in) :: lattice
         integer :: i
 
         nions = lattice%nions
         basis = lattice%basis
+        if (.not. band_select) then
+            iband(1) = 1
+            iband(2) = nions
+        end if
+        nbands = iband(2) - iband(1) + 1
         basis_rec = lattice%basis_rec
         allocate(position_frac(nions,3))
         allocate(position_cart(nions,3))
@@ -109,10 +115,9 @@ contains
         real(prec), allocatable,optional, intent(out) :: klist_frac(:,:)
         character(len=64) :: fin,mode,tag
         character(len=128) :: line
-        integer :: unit,nk(3),nkpts
+        integer :: i,unit,nk(3),nkpts
         type(node), pointer :: head, current
         real(prec) :: values(3)
-        integer :: i
 
         unit = 102
 
@@ -173,21 +178,37 @@ contains
 
     end subroutine readKPOINTS
 
+    subroutine readWannier(seedname)
+        character(len=64), optional, intent(in):: seedname
+        character(len=64) :: fin
+        integer :: unit
+        
+        unit = 103
+        if (present(seedname)) then
+            fin = seedname
+        else 
+            fin = f_wannier
+        end if
+
+
+
+    end subroutine readWannier
+
+
     subroutine writeBand(x_list,eig,style,istart,iend)
-        use constants, only:prec,f_eig
+        use constants, only:prec,f_eig,nbands
         real(prec), intent(in) :: x_list(:),eig(:,:)
         character(len=3), intent(in), optional :: style
         integer, intent(in), optional :: istart,iend
         character(len=3) :: dstyle = 'gnu'
         character(len=64) :: fout
-        integer :: unit, i, j, nkpoints, nbands, ib_start, ib_end
+        integer :: unit, i, j, nkpoints, ib_start, ib_end
         real :: t_start,t_end
         
         call cpu_time(t_start)
 
         unit = 200
         nkpoints = size(x_list,1)
-        nbands = size(eig,1)
 
         if (present(style)) then
             dstyle = style

@@ -1,16 +1,17 @@
 module mpi_solver
-    use constants
-    use ioutils
     use mpi_f08
     use tbmodel
-    use parser
+
 
     implicit none
     
 contains
 
     subroutine init_mpi()
-        use constants, only: rank,nproc
+        use constants, only: rank,nproc,init_constants
+        use parser, only: input_parser
+        integer :: ierr
+
         call MPI_Init(ierr)
         call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
         call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierr)
@@ -19,7 +20,9 @@ contains
     end subroutine init_mpi
 
     subroutine init_POSCAR_mpi(filename)
-        use constants, only: rank,nions,basis,basis_rec,position_frac,position_cart,f_poscar
+        use constants, only: rank,nions,nbands,basis,basis_rec,position_frac,position_cart,f_poscar,timer_mpi
+        use ioutils, only: parsePOSCAR
+        integer :: ierr
         character(len=*), intent(in), optional :: filename
         real :: t_start,t_end
 
@@ -39,6 +42,7 @@ contains
         end if
 
         call MPI_Bcast(nions, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        call MPI_Bcast(nbands, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         call MPI_Bcast(basis, 9, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
         call MPI_Bcast(basis_rec, 9, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
         if (not(allocated(position_frac))) then
@@ -89,7 +93,7 @@ contains
         end do
 
         if (present(ngroups) .and. ncache>0) then
-            if (.not. allocated(ngroups)) allocate(ngroups(nproc))
+            if (.not. allocated(ngroups)) allocate(ngroups(nprocs))
             do i = 1, nprocs
                 n_groups = counts(i) / ncache
                 if (mod(counts(i), ncache) /= 0) then
@@ -104,13 +108,16 @@ contains
     end subroutine calculate_workload
 
 subroutine calculate_klist_mpi(klist,eig,wavef,tag)
-        use constants, only: ncache
+        use constants, only: prec,ncache,nbands,nions,nproc,rank,timer_mpi,timer_cpu
+        use utils, only: k2frac_list
+        use solver, only: calculate_klist
+        integer :: ierr
         real(prec), intent(in) :: klist(:,:)
         real(prec), intent(out), allocatable :: eig(:,:)
         complex(prec), intent(out), allocatable, optional :: wavef(:,:,:)
         character(len=1), intent(in), optional :: tag
 
-        integer :: nkpts,nkpts_local,nbands,ik_start,ik_end
+        integer :: nkpts,nkpts_local,ik_start,ik_end
         real :: t_start,t_end, t_mpi
         integer,allocatable :: counts(:), displs(:), ngroups_all(:)
         real(prec), allocatable :: eig_group(:,:)
@@ -124,7 +131,6 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
         complex(prec), allocatable :: wavef_recv(:,:,:)
         
         nkpts = size(klist,1)
-        nbands  = size(position_frac,1)
         allocate(counts(nproc), displs(nproc), ngroups_all(nproc))
         if (rank == 0) then
             call calculate_workload(nkpts, nproc, counts, displs,ngroups_all)
@@ -149,9 +155,10 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
         if (rank == 0) then
             allocate(eig(nbands, nkpts))
             if (present(wavef)) then
-                allocate(wavef(nbands, nbands, nkpts))
+                allocate(wavef(nions, nbands, nkpts))
             end if
         end if
+        write(*,*) rank,nbands
 
         call cpu_time(t_start)
 
@@ -169,7 +176,7 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
                 klist_group = klist_local(group_start:group_end, :)
                 
                 if (present(wavef)) then
-                    allocate(wavef_group(nbands, nbands, group_size))
+                    allocate(wavef_group(nions, nbands, group_size))
                     allocate(eig_group(nbands, group_size))
                     call calculate_klist(klist_group, eig_group, wavef_group)
                 else
@@ -183,7 +190,7 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
                     call MPI_Send(eig_group, nbands*group_size, MPI_DOUBLE_PRECISION, &
                                   0, igroup, MPI_COMM_WORLD, ierr)
                     if (present(wavef)) then
-                        call MPI_Send(wavef_group, nbands*nbands*group_size, &
+                        call MPI_Send(wavef_group, nions*nbands*group_size, &
                                       MPI_DOUBLE_COMPLEX, 0, igroup+nproc, MPI_COMM_WORLD, ierr)
                     end if
                 end if
@@ -208,7 +215,7 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
                         
                         if (present(wavef)) then
                             allocate(wavef_recv(nbands, nbands, i_group_size))
-                            call MPI_Recv(wavef_recv, nbands*nbands*i_group_size, &
+                            call MPI_Recv(wavef_recv, nions*nbands*i_group_size, &
                                           MPI_DOUBLE_COMPLEX, i, igroup+nproc, &
                                           MPI_COMM_WORLD, mpi_status, ierr)
                             
@@ -254,12 +261,14 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
 end subroutine calculate_klist_mpi
 
 subroutine calculate_band_mpi(kpath, nk)
+    use constants, only: prec,kpath_default,rank,kpt_select,f_kpoint,nk_path
+    use ioutils, only: readKPOINTS,writeBand,writeLabels
     real(prec), allocatable, optional:: kpath(:,:,:)
     integer, optional :: nk
     real(prec), allocatable:: paths(:,:,:),klist_frac(:,:),klist_cart(:,:),xlist(:),lable_positions(:),eig(:,:)
     real(prec), allocatable:: klist_tmp(:,:)
     character(len=3), allocatable :: labels(:)
-    integer :: nkpts,nk_local,i,npath
+    integer :: ierr,nkpts,nk_local,i,npath
     
     if (rank == 0) then
         if (present(kpath)) then
@@ -302,8 +311,8 @@ end subroutine calculate_band_mpi
 subroutine calculate_eels_mpi(q_list,tag)
     ! q by default: Cartesian
     use ioutils, only: readKPOINTS,writeEELS
-    use constants, only: f_kpoint,prec,basis_rec,rank,nproc,ncache,nomega,omegalist,timer_cpu
-    use utils,only: cross2d,k2cart_list,k2cart_list
+    use constants, only: f_kpoint,prec,basis_rec,rank,nproc,ncache,nomega,omegalist,timer_cpu,timer_mpi
+    use utils,only: cross2d,k2cart_list,k2cart_list,k2frac_list
     use eels, only: calculate_IPF_klist,calculate_eels
     type(MPI_Status) :: mpi_status
     real(prec),intent(in) :: q_list(:,:)
@@ -311,7 +320,7 @@ subroutine calculate_eels_mpi(q_list,tag)
     character(1), intent(in), optional :: tag
     real(prec),allocatable :: klist(:,:),klist_local(:,:),klist_group(:,:),q_list_frac(:,:),q_list_cart(:,:)
     integer,allocatable :: counts(:), displs(:), ngroups_all(:)
-    integer :: i,nkpts,nqpts,nkpts_local,ik_start,ik_end,ngroups
+    integer :: i,nkpts,nqpts,nkpts_local,ik_start,ik_end,ngroups,ierr
     integer :: igroup,group_start,group_end,group_size
     complex(prec),allocatable :: IPF(:,:),IPF_group(:,:),IPF_recv(:,:)
     real(prec) :: dS,t_start,t_end,t_mpi

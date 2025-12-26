@@ -28,7 +28,7 @@ contains
 
     subroutine calculate_IPF_k(omegalist,eig_k,eig_kq,phi_k,phi_kq,resultlist,q_cart)
         ! require cartesian q
-        use constants, only: prec,nions,position_cart,delta
+        use constants, only: prec,nbands,position_cart,delta
         use interface, only: zgemm
         real(prec), intent(in) :: omegalist(:),eig_k(:),eig_kq(:)
         complex(prec), intent(in) :: phi_k(:,:),phi_kq(:,:)
@@ -38,37 +38,37 @@ contains
         integer :: i,iband_k,iband_kq,nomega
         real(prec) :: delta_f, delta_E
 
-        allocate(phase(nions))
-        allocate(phi_k_scaled(nions,nions))
+        allocate(phase(nbands))
+        allocate(phi_k_scaled(nbands,nbands))
 
         if (present(q_cart)) then
-            do i = 1,nions
+            do i = 1,nbands
                 phase(i) = exp(cmplx(0.0_prec, dot_product(q_cart,position_cart(i,:)),prec))
             end do
         else 
             phase = cmplx(1.0_prec, 0.0_prec, prec)
         end if 
 
-        do i=1, nions
+        do i=1, nbands
             phi_k_scaled(:,i) = phi_k(:,i) * phase
         end do 
 
         deallocate(phase)
 
         ! 'C' - 对第一个矩阵取共轭转置；'N' - 第二个矩阵不转置
-        allocate(M(nions, nions))
-        call zgemm('C', 'N', nions, nions, nions, &
+        allocate(M(nbands, nbands))
+        call zgemm('C', 'N', nbands, nbands, nbands, &
                cmplx(1.0_prec, 0.0_prec, prec), &
-               phi_kq, nions, &
-               phi_k_scaled, nions, &
+               phi_kq, nbands, &
+               phi_k_scaled, nbands, &
                cmplx(0.0_prec, 0.0_prec, prec), &
-               M, nions)
+               M, nbands)
         deallocate(phi_k_scaled)
 
         nomega = size(omegalist)
 
-        do iband_k=1,nions
-            do iband_kq=1,nions
+        do iband_k=1,nbands
+            do iband_kq=1,nbands
                 delta_f = Fermi_Dirac(eig_k(iband_k)) - Fermi_Dirac(eig_kq(iband_kq))
                 delta_E = eig_k(iband_k) - eig_kq(iband_kq)
                 do i = 1, nomega
@@ -85,7 +85,7 @@ contains
     subroutine calculate_IPF_klist(omegalist,klist_frac,q_list_frac,IPF)
         use constants, only: prec,calc_iqr
         use utils, only: k2frac,k2cart,k2frac_list
-        use tbmodel, only : calculate_klist
+        use solver, only : calculate_klist
         real(prec), intent(in) :: omegalist(:),klist_frac(:,:),q_list_frac(:,:)
         complex(prec), allocatable, intent(inout):: IPF(:,:)
         real(prec) :: q_frac(3),q_cart(3)

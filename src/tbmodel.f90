@@ -1,13 +1,11 @@
 module tbmodel
-    use constants
-    use interface, only: zheevd
-    use utils
-
+    
     implicit none
     
 contains
     function f_cutoff(r) result(F_c)
         ! returns the smooth cutoff function
+        use constants, only: prec,r_c,l_c
         real(prec), intent(in) :: r
         real(prec) :: F_c
         
@@ -15,7 +13,8 @@ contains
 
     end function f_cutoff
 
-    function hopping(r_cart) result(t)
+    function tbg_hopping(r_cart) result(t)
+        use constants, only: prec, gamma0,gamma1,q_pi,q_sigma,d0,a_d
         real(prec), intent(in) :: r_cart(3)
         real(prec) :: t,V_pi,V_sigma,F_c,n,r
 
@@ -26,9 +25,11 @@ contains
         V_sigma = gamma1*exp(q_sigma*(1.0_prec-r/d0))*F_c
         t = n**2*V_sigma + (1.0_prec-n**2)*V_pi
         
-    end function hopping
+    end function tbg_hopping
 
-    subroutine build_H(kvec,Hk)
+    subroutine build_H_tbg(kvec,Hk)
+        use constants, only: prec,position_frac,onsite,pi
+        use utils, only: r_reduced,r2cart
         real(prec), intent(in) :: kvec(3)
         complex(prec), intent(out) :: Hk(:,:)
         integer :: i,j
@@ -42,63 +43,29 @@ contains
                     Hk(i,i) = onsite 
                 else
                     R_vec = r_reduced(position_frac(j,:) - position_frac(i,:))
-                    HR = hopping(r2cart(R_vec))   
+                    HR = tbg_hopping(r2cart(R_vec))   
                     phase = 2.0_prec * pi * dot_product(kvec, R_vec)
                     Hk(i,j) = HR * exp(cmplx(0.0_prec, phase))
                     Hk(j,i) = conjg(Hk(i,j))    
                 end if
             end do
-        end do    
+        end do  
+    end subroutine build_H_tbg
 
+    subroutine build_H(kvec,Hk)
+        use constants, only: prec,model_type
+        real(prec), intent(in) :: kvec(3)
+        complex(prec), intent(out) :: Hk(:,:)
+
+        select case (model_type)
+            case('tbg')
+                call build_H_tbg(kvec,Hk)
+        end select
     end subroutine build_H
 
-    subroutine compute_eig(Hk, eig, jobz)
-        complex(prec), intent(inout) :: Hk(:,:)
-        real(prec), intent(out) :: eig(:)
-        character(len=1), intent(in) :: jobz
-        integer :: n, lda, info
-        complex(8), allocatable :: work8(:)
-        real(8), allocatable :: rwork8(:)
-        integer, allocatable :: iwork(:)
-        complex(8) :: workq(1)
-        real(8) :: rworkq(1)
-        integer :: iworkq(1)
-        integer :: lwork, lrwork, liwork
-        real :: t_start,t_end
-
-        if (timer_debug) call cpu_time(t_start)
-
-        ! jobz is required by caller; pass it directly to zheevd
-        n = size(Hk,1)
-        lda = max(1,n)
-
-        lwork = -1
-        lrwork = -1
-        liwork = -1
-        ! trial call
-        call zheevd(jobz,'U', n, Hk, lda, eig, workq, lwork, rworkq, lrwork, iworkq, liwork, info)
-        lwork = max(1, int(real(workq(1))))
-        lrwork = max(1, int(rworkq(1)))
-        liwork = max(1, iworkq(1))
-
-        allocate(work8(lwork),rwork8(lrwork),iwork(liwork))
-
-        call zheevd(jobz,'U', n, Hk, lda, eig, work8, lwork, rwork8, lrwork, iwork, liwork, info)
-
-        if (timer_debug) then
-            call cpu_time(t_end)
-            write(*,"(12X,A,1X,F8.3)") "[eig] Call ZHEEVD finished!  Time cost (s): ", t_end-t_start
-        end if
-
-        if (info /= 0) then
-            write(*,*) "[Error] Call ZHEEVD failed!"
-        end if
-
-        deallocate(work8,rwork8,iwork)
-
-    end subroutine compute_eig
-
     subroutine generate_kpath(paths,nk,k_list_frac,k_list_cart,x_list,labels,lable_positions)  
+        use utils, only:k2cart,get_label
+        use constants, only: prec
         real(prec), intent(in) :: paths(:,:,:)
         integer, intent(in) :: nk
         real(prec), allocatable, intent(out) :: k_list_frac(:,:),k_list_cart(:,:),x_list(:)
@@ -143,57 +110,6 @@ contains
         write(*,"(I4,1X,A)") nkpts,"k-points generated."
     
     end subroutine generate_kpath
-
-    subroutine calculate_k(kvec,eig,wavef)
-        real(prec), intent(in) :: kvec(3)
-        real(prec), intent(out) :: eig(:)       
-        complex(prec), intent(out), optional :: wavef(:,:)
-
-        complex(prec), allocatable:: Hk(:,:)
-        
-        if (not(present(wavef))) then
-            ! N for eigenvalues only , V also for eigenvectors
-            allocate(Hk(size(eig,1),size(eig,1)))
-            call build_H(kvec,Hk)
-            call compute_eig(Hk, eig, 'N')
-            deallocate(Hk)
-        else
-            call build_H(kvec,wavef)
-            call compute_eig(wavef, eig, 'V')
-        end if    
-
-    end subroutine calculate_k
-
-    subroutine calculate_klist(klist,eig,wavef,tag)
-        !  Fractional k-points are favored
-        real(prec), intent(in) :: klist(:,:)
-        real(prec), intent(out), allocatable :: eig(:,:)
-        complex(prec), intent(out), allocatable, optional :: wavef(:,:,:)
-        character(len=1), intent(in), optional :: tag
-
-        real(prec), allocatable :: kpoints(:,:)
-        integer :: nkpts,i
-
-        nkpts = size(klist,1)
-        allocate(kpoints(nkpts,3))
-        if (present(tag) .and. tag == 'C') then
-            call k2frac_list(klist,kpoints)
-        else 
-            kpoints = klist
-        end if
-
-        if (.not. allocated(eig)) allocate(eig(nions,nkpts))
-        if (present(wavef) .and. .not. allocated(wavef)) allocate(wavef(nions,nions,nkpts))
-
-        do i = 1,nkpts
-            if (present(wavef)) then
-                call calculate_k(kpoints(i,:),eig(:,i),wavef(:,:,i))
-            else
-                call calculate_k(kpoints(i,:),eig(:,i))
-            end if
-        end do
-
-    end subroutine calculate_klist
     
     
 end module tbmodel
