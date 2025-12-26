@@ -88,6 +88,7 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 | **FPOSCAR** | `<filename>` | Path to the VASP‑format POSCAR file (default: `cont.vasp`) |
 | **FEIGEN** | `<filename>` | Output file for band eigenvalues (default: `tb_band.dat`). Also enables band‑structure writing. |
 | **FKPOINTS** | `<filename>` | VASP‑format file containing k‑point path definitions (default: `KPOINTS`). If present, enables k‑point selection. |
+| **FWANNIER** | `<filename>` | Path to the Wannier90 input file (default: `wannier90`). If present, sets model type to Wannier (`wan`). |
 | **IBAND** | `<iband_start> <iband_end>` | Select a specific range of bands to compute (1‑based indices). Enables band selection. |
 | **NCACHE** | `<integer>` | Cache size for intermediate arrays (default: 0 – automatic). This number determines how many numbers of k points would be calculated together on each rank. Less number of `ncache` reduce memory cost on each worker rank but brings higher MPI communication cost.|
 | **OMEGA** | `<nomega> <omega_i> <omega_f>` | Define the energy (frequency) mesh for the loss function:<br>`nomega` – number of points<br>`omega_i` – starting energy (eV)<br>`omega_f` – ending energy (eV) |
@@ -96,6 +97,10 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 | **EFERMI** | `<energy>` | Fermi energy in eV (default: 0.0). |
 | **TEMPERATURE** | `<T>` | Temperature in Kelvin (default: 300). |
 | **DELTA** | `<broadening>` | Broadening parameter (eV) for spectral functions (default: 1e‑3). |
+| **CALC_IQR** | `<logical>` | Whether to calculate the imaginary part of the response function (default: `.false.`). |
+| **TMPI** | `<logical>` | Enable/disable MPI timer profiling (default: `.true.`). |
+| **TDEBUG** | `<logical>` | Enable/disable debug timer profiling (default: `.false.`). |
+| **MODEL** | `<string>` | Model type selector: `tbg` for tight-binding graphene (default) or `wan` for Wannier model. |
 
 ### Example input.in for EELS calculation
 ```plaintext
