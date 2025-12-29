@@ -20,7 +20,7 @@ contains
     end subroutine init_mpi
 
     subroutine init_POSCAR_mpi(filename)
-        use constants, only: rank,nions,nbands,basis,basis_rec,position_frac,position_cart,f_poscar,timer_mpi
+        use constants, only: rank,nions,nbands,iband,basis,basis_rec,position_frac,position_cart,f_poscar,timer_mpi
         use ioutils, only: parsePOSCAR
         integer :: ierr
         character(len=*), intent(in), optional :: filename
@@ -43,6 +43,7 @@ contains
 
         call MPI_Bcast(nions, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         call MPI_Bcast(nbands, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        call MPI_Bcast(iband, 2, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         call MPI_Bcast(basis, 9, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
         call MPI_Bcast(basis_rec, 9, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
         if (not(allocated(position_frac))) then
@@ -158,7 +159,6 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
                 allocate(wavef(nions, nbands, nkpts))
             end if
         end if
-        write(*,*) rank,nbands
 
         call cpu_time(t_start)
 

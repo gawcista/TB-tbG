@@ -28,7 +28,7 @@ contains
 
     subroutine calculate_IPF_k(omegalist,eig_k,eig_kq,phi_k,phi_kq,resultlist,q_cart)
         ! require cartesian q
-        use constants, only: prec,nbands,position_cart,delta
+        use constants, only: prec,nbands,position_cart,delta,iband
         use interface, only: zgemm
         real(prec), intent(in) :: omegalist(:),eig_k(:),eig_kq(:)
         complex(prec), intent(in) :: phi_k(:,:),phi_kq(:,:)
@@ -55,7 +55,6 @@ contains
 
         deallocate(phase)
 
-        ! 'C' - 对第一个矩阵取共轭转置；'N' - 第二个矩阵不转置
         allocate(M(nbands, nbands))
         call zgemm('C', 'N', nbands, nbands, nbands, &
                cmplx(1.0_prec, 0.0_prec, prec), &
@@ -67,8 +66,8 @@ contains
 
         nomega = size(omegalist)
 
-        do iband_k=1,nbands
-            do iband_kq=1,nbands
+        do iband_k=iband(1),iband(2)
+            do iband_kq=iband(1),iband(2)
                 delta_f = Fermi_Dirac(eig_k(iband_k)) - Fermi_Dirac(eig_kq(iband_kq))
                 delta_E = eig_k(iband_k) - eig_kq(iband_kq)
                 do i = 1, nomega

@@ -25,7 +25,7 @@ MODS = $(patsubst $(SRCDIR)/%.f90, $(BUILDDIR)/%.mod, $(filter-out $(SRCDIR)/mai
 # Determine module dependencies (simplified)
 # We'll define a fixed order to ensure modules are compiled before their dependents
 # This list should be ordered from least dependent to most dependent
-MODULE_ORDER = constants interface types utils parser tbmodel eels ioutils solver mpi_solver
+MODULE_ORDER = constants interface types utils parser tbmodel solver eels ioutils mpi_solver
 
 # Convert module names to source files
 ORDERED_SRCS = $(foreach mod,$(MODULE_ORDER), $(SRCDIR)/$(mod).f90)
@@ -65,6 +65,10 @@ clean:
 .PHONY: all clean
 
 # Dependencies (simplified - in practice should be generated automatically)
+# Rule to generate .mod files (they are created when compiling .o files)
+$(BUILDDIR)/%.mod: $(SRCDIR)/%.f90
+	@touch $@
+
 # constants.f90 is independent
 $(BUILDDIR)/constants.o: $(SRCDIR)/constants.f90
 
@@ -79,12 +83,12 @@ $(BUILDDIR)/utils.o: $(SRCDIR)/utils.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/i
 
 # For other modules, we'll assume they depend on constants and types at least
 # In a real project, you might want to generate dependencies automatically
-$(BUILDDIR)/parser.o: $(SRCDIR)/parser.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod
+$(BUILDDIR)/parser.o: $(SRCDIR)/parser.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod
 $(BUILDDIR)/tbmodel.o: $(SRCDIR)/tbmodel.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod
-$(BUILDDIR)/eels.o: $(SRCDIR)/eels.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod $(BUILDDIR)/tbmodel.mod
+$(BUILDDIR)/eels.o: $(SRCDIR)/eels.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/interface.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod $(BUILDDIR)/tbmodel.mod $(BUILDDIR)/solver.mod
 $(BUILDDIR)/ioutils.o: $(SRCDIR)/ioutils.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod
-$(BUILDDIR)/solver.o: $(SRCDIR)/solver.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod $(BUILDDIR)/ioutils.mod $(BUILDDIR)/tbmodel.mod
-$(BUILDDIR)/mpi_solver.o: $(SRCDIR)/mpi_solver.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod $(BUILDDIR)/tbmodel.mod $(BUILDDIR)/eels.mod
+$(BUILDDIR)/solver.o: $(SRCDIR)/solver.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/interface.mod $(BUILDDIR)/utils.mod $(BUILDDIR)/tbmodel.mod
+$(BUILDDIR)/mpi_solver.o: $(SRCDIR)/mpi_solver.f90 $(BUILDDIR)/constants.mod $(BUILDDIR)/types.mod $(BUILDDIR)/utils.mod $(BUILDDIR)/tbmodel.mod $(BUILDDIR)/solver.mod $(BUILDDIR)/eels.mod $(BUILDDIR)/parser.mod $(BUILDDIR)/ioutils.mod
 
 # main.f90 depends on almost everything
 $(BUILDDIR)/main.o: $(SRCDIR)/main.f90 \
