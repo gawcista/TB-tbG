@@ -3,55 +3,6 @@ module solver
 
 contains
 
-    subroutine compute_eig_full(Hk, eig, jobz)
-        use interface, only: zheevd
-        use constants, only: rank, prec, timer_debug
-        complex(prec), intent(inout) :: Hk(:,:)
-        real(prec), intent(out) :: eig(:)
-        character(len=1), intent(in) :: jobz
-
-        integer :: n, lda, info
-        complex(8), allocatable :: work8(:)
-        real(8), allocatable :: rwork8(:)
-        integer, allocatable :: iwork(:)
-        complex(8) :: workq(1)
-        real(8) :: rworkq(1)
-        integer :: iworkq(1)
-        integer :: lwork, lrwork, liwork
-        real :: t_start,t_end
-
-        if (timer_debug) call cpu_time(t_start)
-
-        ! jobz is required by caller; pass it directly to zheevd
-        n = size(Hk,1)
-        lda = max(1,n)
-
-        lwork = -1
-        lrwork = -1
-        liwork = -1
-        ! trial call
-        call zheevd(jobz,'U', n, Hk, lda, eig, workq, lwork, rworkq, lrwork, iworkq, liwork, info)
-        lwork = max(1, int(real(workq(1))))
-        lrwork = max(1, int(rworkq(1)))
-        liwork = max(1, iworkq(1))
-
-        allocate(work8(lwork),rwork8(lrwork),iwork(liwork))
-
-        call zheevd(jobz,'U', n, Hk, lda, eig, work8, lwork, rwork8, lrwork, iwork, liwork, info)
-
-        if (timer_debug) then
-            call cpu_time(t_end)
-            write(*,"(12X,A,I4,1X,A,F8.3)") "[Eig] Rank", rank,"Call ZHEEVD finished!  Time cost (s): ", t_end-t_start
-        end if
-
-        if (info /= 0) then
-            write(*,*) "[Error] Call ZHEEVD failed!"
-        end if
-
-        deallocate(work8,rwork8,iwork)
-
-    end subroutine compute_eig_full
-
 subroutine compute_eig(Hk, eig, wavef)
     use interface, only: zheevr
     use constants, only: rank, prec, timer_debug, iband, nbands, nions
