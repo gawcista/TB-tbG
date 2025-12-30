@@ -46,10 +46,10 @@ contains
         call MPI_Bcast(iband, 2, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         call MPI_Bcast(basis, 9, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
         call MPI_Bcast(basis_rec, 9, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
-        if (not(allocated(position_frac))) then
+        if (.not. allocated(position_frac)) then
             allocate(position_frac(nions,3))
         end if
-        if (not(allocated(position_cart))) then
+        if (.not. allocated(position_cart)) then
             allocate(position_cart(nions,3))  
         end if
         call MPI_Bcast(position_frac, size(position_frac), MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
@@ -145,7 +145,7 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
         ik_start = displs(rank+1) + 1
         ik_end = ik_start + nkpts_local - 1
 
-        if (not(present(tag)) .or. tag == 'D') then
+        if (.not. present(tag) .or. tag == 'D') then
             klist_local = klist(ik_start:ik_end,:)
         else
             allocate(klist_local(nkpts_local,3))
@@ -214,7 +214,7 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
                         deallocate(eig_recv)
                         
                         if (present(wavef)) then
-                            allocate(wavef_recv(nbands, nbands, i_group_size))
+                            allocate(wavef_recv(nions, nbands, i_group_size))
                             call MPI_Recv(wavef_recv, nions*nbands*i_group_size, &
                                           MPI_DOUBLE_COMPLEX, i, igroup+nproc, &
                                           MPI_COMM_WORLD, mpi_status, ierr)
@@ -311,7 +311,7 @@ end subroutine calculate_band_mpi
 subroutine calculate_eels_mpi(q_list,tag)
     ! q by default: Cartesian
     use ioutils, only: readKPOINTS,writeEELS
-    use constants, only: f_kpoint,prec,basis_rec,rank,nproc,ncache,nomega,omegalist,timer_cpu,timer_mpi
+    use constants, only: f_kpoint,prec,basis_rec,rank,nproc,ncache,nomega,omegalist,timer_cpu,timer_mpi,nbands,nions,iband
     use utils,only: cross2d,k2cart_list,k2cart_list,k2frac_list
     use eels, only: calculate_IPF_klist,calculate_eels
     type(MPI_Status) :: mpi_status
@@ -342,6 +342,7 @@ subroutine calculate_eels_mpi(q_list,tag)
         dS = cross2d(basis_rec(1,:),basis_rec(2,:))/nkpts
         call calculate_workload(nkpts,nproc,counts,displs,ngroups_all)
         write(*,"(A,I4,1X,A,I4,1X,A)") "[Main] Calculating EELS of ",nqpts,"q-points on ",nkpts,"k-points"
+        write(*,"(A,I6,1X,A,I4,1X,A,I4,1X,A)") "[Main] ",nbands," bands (#",iband(1),"-",iband(2),") will be considered in the calculation."
         write(*, '(A,I4,1X,A,F5.3,A,F5.3,A)') "[Main]",nomega,"omega points are set in [",omegalist(1),",",omegalist(nomega),"]"
     end if
     ! Broadcast nkpts and workload

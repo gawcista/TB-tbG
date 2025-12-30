@@ -95,7 +95,7 @@ end subroutine compute_eig
 
         allocate(Hk(nions,nions))
         
-        if (not(present(wavef))) then
+        if (.not. present(wavef)) then
             ! N for eigenvalues only , V also for eigenvectors
             call build_H(kvec,Hk)
             call compute_eig(Hk, eig)

@@ -28,7 +28,7 @@ contains
 
     subroutine calculate_IPF_k(omegalist,eig_k,eig_kq,phi_k,phi_kq,resultlist,q_cart)
         ! require cartesian q
-        use constants, only: prec,nbands,position_cart,delta,iband
+        use constants, only: prec,nbands,nions,position_cart,delta,iband
         use interface, only: zgemm
         real(prec), intent(in) :: omegalist(:),eig_k(:),eig_kq(:)
         complex(prec), intent(in) :: phi_k(:,:),phi_kq(:,:)
@@ -38,11 +38,11 @@ contains
         integer :: i,iband_k,iband_kq,nomega
         real(prec) :: delta_f, delta_E
 
-        allocate(phase(nbands))
-        allocate(phi_k_scaled(nbands,nbands))
+        allocate(phase(nions))
+        allocate(phi_k_scaled(nions,nbands))
 
         if (present(q_cart)) then
-            do i = 1,nbands
+            do i = 1,nions
                 phase(i) = exp(cmplx(0.0_prec, dot_product(q_cart,position_cart(i,:)),prec))
             end do
         else 
@@ -56,18 +56,18 @@ contains
         deallocate(phase)
 
         allocate(M(nbands, nbands))
-        call zgemm('C', 'N', nbands, nbands, nbands, &
+        call zgemm('C', 'N', nbands, nbands, nions, &
                cmplx(1.0_prec, 0.0_prec, prec), &
-               phi_kq, nbands, &
-               phi_k_scaled, nbands, &
+               phi_kq, nions, &
+               phi_k_scaled, nions, &
                cmplx(0.0_prec, 0.0_prec, prec), &
                M, nbands)
         deallocate(phi_k_scaled)
 
         nomega = size(omegalist)
 
-        do iband_k=iband(1),iband(2)
-            do iband_kq=iband(1),iband(2)
+        do iband_k=1,nbands
+            do iband_kq=1,nbands
                 delta_f = Fermi_Dirac(eig_k(iband_k)) - Fermi_Dirac(eig_kq(iband_kq))
                 delta_E = eig_k(iband_k) - eig_kq(iband_kq)
                 do i = 1, nomega

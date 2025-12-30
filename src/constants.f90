@@ -105,7 +105,7 @@ contains
     subroutine kpath_default(paths)
         real(prec), intent(out), allocatable :: paths(:,:,:)
 
-        if (not(allocated(paths))) then
+        if (.not. allocated(paths)) then
             allocate(paths(3,2,3))
         end if
 
