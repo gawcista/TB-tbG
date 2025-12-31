@@ -91,6 +91,7 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 | **FWANNIER** | `<filename>` | Path to the Wannier90 input file (default: `wannier90`). If present, sets model type to Wannier (`wan`). |
 | **IBAND** | `<iband_start> <iband_end>` | Select a specific range of bands to compute (1‑based indices). Enables band selection. |
 | **NCACHE** | `<integer>` | Cache size for intermediate arrays (default: 0 – automatic). This number determines how many numbers of k points would be calculated together on each rank. Less number of `ncache` reduce memory cost on each worker rank but brings higher MPI communication cost.|
+| **EELSMODE** | `<integer>` | Select EELS calculation mode: 0 for full calculation, 1 for intraband only, 2 for interband only. |
 | **OMEGA** | `<nomega> <omega_i> <omega_f>` | Define the energy (frequency) mesh for the loss function:<br>`nomega` – number of points<br>`omega_i` – starting energy (eV)<br>`omega_f` – ending energy (eV) |
 | **QPOINT** | `<nqpts> <qx1 qy1 qz1> <qx2 qy2 qz2>` | Define a q‑point path for EELS:<br>`nqpts` – number of q‑points along the line<br>`(qx1, qy1, qz1)` – start point in reciprocal fractional coordinates<br>`(qx2, qy2, qz2)` – end point |
 | **QTAG** | `<character>` | Single‑character label for the q‑point set (default: `D`). `D` means the q vectors are provided in direct (fractional) coordinates; `C` specifies that q vectors are provided in a Cartesian coordinate system |

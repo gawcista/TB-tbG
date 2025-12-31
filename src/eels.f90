@@ -28,7 +28,7 @@ contains
 
     subroutine calculate_IPF_k(omegalist,eig_k,eig_kq,phi_k,phi_kq,resultlist,q_cart)
         ! require cartesian q
-        use constants, only: prec,nbands,nions,position_cart,delta,iband
+        use constants, only: prec,nbands,nions,position_cart,delta,eels_mode
         use interface, only: zgemm
         real(prec), intent(in) :: omegalist(:),eig_k(:),eig_kq(:)
         complex(prec), intent(in) :: phi_k(:,:),phi_kq(:,:)
@@ -68,6 +68,8 @@ contains
 
         do iband_k=1,nbands
             do iband_kq=1,nbands
+                if (eels_mode==1 .and. iband_k/=iband_kq) cycle
+                if (eels_mode==2 .and. iband_k==iband_kq) cycle
                 delta_f = Fermi_Dirac(eig_k(iband_k)) - Fermi_Dirac(eig_kq(iband_kq))
                 delta_E = eig_k(iband_k) - eig_kq(iband_kq)
                 do i = 1, nomega

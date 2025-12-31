@@ -45,7 +45,7 @@ module constants
     character(len=1) :: q_tag,job_type
     real(prec) :: basis(3,3), basis_rec(3,3)
     real(prec), allocatable :: position_frac(:,:), position_cart(:,:),omegalist(:),qlist(:,:)
-    integer :: nk_path 
+    integer :: nk_path,eels_mode
     integer :: nions,nbands,nomega,iband(2)
 
     integer ::  rank, nproc, ncache
@@ -71,6 +71,7 @@ contains
         calc_iqr = .false.
         model_type = "tbg"
         f_wannier = 'wannier90'
+        eels_mode = 0
         call set_omegalist(0._prec,0.1_prec)
 
     end subroutine init_constants

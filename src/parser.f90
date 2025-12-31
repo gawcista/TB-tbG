@@ -55,6 +55,8 @@ contains
                             nbands = iband(2)-iband(1)+1
                         case ('NCACHE')
                             read(line,*,iostat=io) tmp,ncache
+                        case('EELSMODE') ! 0-all; 1-intraband; 2-interband
+                            read(line,*,iostat=io) tmp,eels_mode   
                         case ('OMEGA')
                             read(line,*,iostat=io) tmp,nomega,omega_i,omega_f
                             call set_omegalist(omega_i,omega_f)
