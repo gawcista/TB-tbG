@@ -1,8 +1,8 @@
 # Makefile for TB-tbG Fortran project
 # Compiler and flags
 FC = mpiifx
-FFLAGS = -O2 -qmkl -module build -Ibuild -xHost
-LDFLAGS = -qmkl
+FFLAGS = -O2 -qmkl -qopenmp -module build -Ibuild -xHost
+LDFLAGS = -qmkl -qopenmp
 
 # Target executable
 TARGET = tbsolver
