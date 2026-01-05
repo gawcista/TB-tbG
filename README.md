@@ -102,6 +102,8 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 | **TMPI** | `<logical>` | Enable/disable MPI timer profiling (default: `.true.`). |
 | **TDEBUG** | `<logical>` | Enable/disable debug timer profiling (default: `.false.`). |
 | **MODEL** | `<string>` | Model type selector: `tbg` for tight-binding graphene (default) or `wan` for Wannier model. |
+| **WRITEM** | `<logical>` | Whether to write the IPF matrix to file (default: `.false.`). |
+| **FEMATRIX** | `<filename>` | Output file for IPF matrix data (default: `tb_eels.mat`). |
 
 ### Example input.in for EELS calculation
 ```plaintext

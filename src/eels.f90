@@ -26,14 +26,15 @@ contains
         V = V_f/((2*pi)**2*epsilon_r*q_mod) 
     end function V_q 
 
-    subroutine calculate_IPF_k(omegalist,eig_k,eig_kq,phi_k,phi_kq,resultlist,q_cart)
+    subroutine calculate_IPF_k(omegalist,eig_k,eig_kq,phi_k,phi_kq,resultlist,q_cart,matrix_contrib)
         ! require cartesian q
-        use constants, only: prec,nbands,nions,position_cart,delta,eels_mode
+        use constants, only: prec,nbands,nions,position_cart,delta,eels_mode,write_matrix
         use interface, only: zgemm
         real(prec), intent(in) :: omegalist(:),eig_k(:),eig_kq(:)
         complex(prec), intent(in) :: phi_k(:,:),phi_kq(:,:)
         real(prec), intent(in), optional :: q_cart(3)
         complex(prec), intent(inout) :: resultlist(:)
+        complex(prec), intent(inout), optional :: matrix_contrib(:,:,:)  ! (nbands,nbands,nomega)
         complex(prec), allocatable :: phase(:),phi_k_scaled(:,:),M(:,:)
         integer :: i,iband_k,iband_kq,nomega
         real(prec) :: delta_f, delta_E
@@ -66,6 +67,13 @@ contains
 
         nomega = size(omegalist)
 
+        ! Initialize matrix_contrib if present
+        if (present(matrix_contrib) .and. write_matrix) then
+            matrix_contrib = (0.0_prec, 0.0_prec)
+        end if
+
+        !$OMP PARALLEL DO PRIVATE(delta_f, delta_E, i) REDUCTION(+:resultlist) &
+        !$OMP& COLLAPSE(2) SCHEDULE(static)
         do iband_k=1,nbands
             do iband_kq=1,nbands
                 if (eels_mode==1 .and. iband_k/=iband_kq) cycle
@@ -76,31 +84,50 @@ contains
                 resultlist(i) = resultlist(i) + real(conjg(M(iband_kq, iband_k)) * M(iband_kq, iband_k), prec) *&
                                 delta_f / (cmplx(delta_E + omegalist(i),delta,prec))
                 end do
+                ! Store individual transition contributions if needed
+                if (present(matrix_contrib) .and. write_matrix) then
+                    do i = 1, nomega
+                        matrix_contrib(iband_kq, iband_k, i) = &
+                            matrix_contrib(iband_kq, iband_k, i) + &
+                            real(conjg(M(iband_kq, iband_k)) * M(iband_kq, iband_k), prec) * &
+                            delta_f / (cmplx(delta_E + omegalist(i),delta,prec))
+                    end do
+                end if
             end do
         end do
+        !$OMP END PARALLEL DO
 
         deallocate(M)
 
     end subroutine calculate_IPF_k
 
-    subroutine calculate_IPF_klist(omegalist,klist_frac,q_list_frac,IPF)
-        use constants, only: prec,calc_iqr
+    subroutine calculate_IPF_klist(omegalist,klist_frac,q_list_frac,IPF,matrix_contrib)
+        use constants, only: prec,calc_iqr,write_matrix,nbands
         use utils, only: k2frac,k2cart,k2frac_list
         use solver, only : calculate_klist
         real(prec), intent(in) :: omegalist(:),klist_frac(:,:),q_list_frac(:,:)
         complex(prec), allocatable, intent(inout):: IPF(:,:)
+        complex(prec), allocatable, intent(inout), optional :: matrix_contrib(:,:,:,:)  ! (nbands,nbands,nomega,nqpts)
         real(prec) :: q_frac(3),q_cart(3)
         real(prec), allocatable :: kqlist_frac(:,:),eig_k(:,:),eig_kq(:,:)
         complex(prec),allocatable :: phi_k(:,:,:),phi_kq(:,:,:)
-        integer :: nkpts,nqpts,ik,iq
+        integer :: nkpts,nqpts,ik,iq,nomega
 
         nkpts = size(klist_frac,1)
         nqpts = size(q_list_frac,1)
+        nomega = size(omegalist)
         allocate(kqlist_frac(nkpts,3))
         if (.not. allocated(IPF)) then
-            allocate(IPF(size(omegalist),nqpts))
+            allocate(IPF(nomega,nqpts))
         end if 
-        IPF = 0.
+        IPF = (0.0_prec, 0.0_prec)
+        ! Allocate matrix_contrib if needed
+        if (present(matrix_contrib) .and. write_matrix) then
+            if (.not. allocated(matrix_contrib)) then
+                allocate(matrix_contrib(nbands, nbands, nomega, nqpts))
+            end if
+            matrix_contrib = (0.0_prec, 0.0_prec)
+        end if
         call calculate_klist(klist_frac,eig_k,phi_k)
         do iq = 1, nqpts
             q_frac = q_list_frac(iq,:)
@@ -110,11 +137,19 @@ contains
             end do
             call calculate_klist(kqlist_frac,eig_kq,phi_kq)
             do ik=1,nkpts
-                if (calc_iqr) then
-                    call calculate_IPF_k(omegalist,eig_k(:,ik),eig_kq(:,ik),phi_k(:,:,ik),phi_kq(:,:,ik),IPF(:,iq),q_cart)
-                else 
-                    call calculate_IPF_k(omegalist,eig_k(:,ik),eig_kq(:,ik),phi_k(:,:,ik),phi_kq(:,:,ik),IPF(:,iq))
-                end if 
+                if (present(matrix_contrib) .and. write_matrix) then
+                    if (calc_iqr) then
+                        call calculate_IPF_k(omegalist,eig_k(:,ik),eig_kq(:,ik),phi_k(:,:,ik),phi_kq(:,:,ik),IPF(:,iq),q_cart,matrix_contrib(:,:,:,iq))
+                    else 
+                        call calculate_IPF_k(omegalist,eig_k(:,ik),eig_kq(:,ik),phi_k(:,:,ik),phi_kq(:,:,ik),IPF(:,iq),matrix_contrib=matrix_contrib(:,:,:,iq))
+                    end if 
+                else
+                    if (calc_iqr) then
+                        call calculate_IPF_k(omegalist,eig_k(:,ik),eig_kq(:,ik),phi_k(:,:,ik),phi_kq(:,:,ik),IPF(:,iq),q_cart)
+                    else 
+                        call calculate_IPF_k(omegalist,eig_k(:,ik),eig_kq(:,ik),phi_k(:,:,ik),phi_kq(:,:,ik),IPF(:,iq))
+                    end if 
+                end if
             end do
             deallocate(eig_kq,phi_kq)
         end do

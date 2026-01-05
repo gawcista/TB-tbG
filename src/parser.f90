@@ -78,8 +78,12 @@ contains
                         case('TDEBUG')
                             read(line,*,iostat=io) tmp,timer_debug
                         case('MODEL')
-                            read(line,*,iostat=io) tmp,model_type         
-                    end select                        
+                            read(line,*,iostat=io) tmp,model_type
+                        case('WRITEM')
+                            read(line,*,iostat=io) tmp,write_matrix
+                        case('FEMATRIX')
+                            read(line,*,iostat=io) tmp,f_matrix         
+                    end select
                                  
                 end if
             end do

@@ -311,7 +311,7 @@ end subroutine calculate_band_mpi
 subroutine calculate_eels_mpi(q_list,tag)
     ! q by default: Cartesian
     use ioutils, only: readKPOINTS,writeEELS
-    use constants, only: f_kpoint,prec,basis_rec,rank,nproc,ncache,nomega,omegalist,timer_cpu,timer_mpi,nbands,nions,iband
+    use constants, only: f_kpoint,prec,basis_rec,rank,nproc,ncache,nomega,omegalist,timer_cpu,timer_mpi,nbands,eels_mode,iband,write_matrix,f_matrix
     use utils,only: cross2d,k2cart_list,k2cart_list,k2frac_list
     use eels, only: calculate_IPF_klist,calculate_eels
     type(MPI_Status) :: mpi_status
@@ -324,6 +324,8 @@ subroutine calculate_eels_mpi(q_list,tag)
     integer :: igroup,group_start,group_end,group_size
     complex(prec),allocatable :: IPF(:,:),IPF_group(:,:),IPF_recv(:,:)
     real(prec) :: dS,t_start,t_end,t_mpi
+    complex(prec), allocatable :: matrix_contrib_local(:,:,:,:), matrix_contrib_global(:,:,:,:)
+    complex(prec), allocatable :: matrix_contrib_group(:,:,:,:)
 
     nqpts = size(q_list,1)
     allocate(q_list_frac(nqpts,3),q_list_cart(nqpts,3))
@@ -342,8 +344,20 @@ subroutine calculate_eels_mpi(q_list,tag)
         dS = cross2d(basis_rec(1,:),basis_rec(2,:))/nkpts
         call calculate_workload(nkpts,nproc,counts,displs,ngroups_all)
         write(*,"(A,I4,1X,A,I4,1X,A)") "[Main] Calculating EELS of ",nqpts,"q-points on ",nkpts,"k-points"
-        write(*,"(A,I6,1X,A,I4,1X,A,I4,1X,A)") "[Main] ",nbands," bands (#",iband(1),"-",iband(2),") will be considered in the calculation."
-        write(*, '(A,I4,1X,A,F5.3,A,F5.3,A)') "[Main]",nomega,"omega points are set in [",omegalist(1),",",omegalist(nomega),"]"
+        select case (eels_mode)
+            case(0)
+                write(*,'(4X,A)') '[EELS] EELS calulation mode is set to 0:ALL'
+            case(1)
+                write(*,'(4X,A)') '[EELS] EELS calulation mode is set to 1:intraband only'
+            case(2)
+                write(*,'(4X,A)') '[EELS] EELS calulation mode is set to 2:interband only'
+        end select
+        write(*,"(4X,A,I6,1X,A,I4,1X,A,I4,1X,A)") "[EELS] ",nbands," bands (#",iband(1),"-",iband(2),") will be considered in the calculation."
+        write(*, '(4X,A,I4,1X,A,F5.3,A,F5.3,A)') "[EELS]",nomega,"omega points are set in [",omegalist(1),",",omegalist(nomega),"]"
+        ! Output matrix elements if requested
+        if (write_matrix) then
+            write(*,'(4X,A)') '[EELS] Writing transition matrix contributions to file: '//trim(f_matrix)
+        end if
     end if
     ! Broadcast nkpts and workload
     call MPI_Bcast(nkpts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
@@ -366,6 +380,14 @@ subroutine calculate_eels_mpi(q_list,tag)
     if (rank ==0) then
         allocate(IPF(nomega,nqpts))
         IPF = (0.0_prec, 0.0_prec)
+        if (write_matrix) then
+            allocate(matrix_contrib_global(nbands, nbands, nomega, nqpts))
+            matrix_contrib_global = (0.0_prec, 0.0_prec)
+        end if
+    end if
+    if (write_matrix) then
+        allocate(matrix_contrib_local(nbands, nbands, nomega, nqpts))
+        matrix_contrib_local = (0.0_prec, 0.0_prec)
     end if
 
     ngroups = ngroups_all(rank + 1)
@@ -384,7 +406,16 @@ subroutine calculate_eels_mpi(q_list,tag)
             ! calculate IPF
             allocate(IPF_group(nomega,nqpts))
             IPF_group = (0.0_prec, 0.0_prec)
-            call calculate_IPF_klist(omegalist, klist_group, q_list_frac, IPF_group)
+            if (write_matrix) then
+                allocate(matrix_contrib_group(nbands, nbands, nomega, nqpts))
+                matrix_contrib_group = (0.0_prec, 0.0_prec)
+                call calculate_IPF_klist(omegalist, klist_group, q_list_frac, IPF_group, matrix_contrib_group)
+                ! accumulate local matrix contributions
+                matrix_contrib_local = matrix_contrib_local + matrix_contrib_group
+                deallocate(matrix_contrib_group)
+            else
+                call calculate_IPF_klist(omegalist, klist_group, q_list_frac, IPF_group)
+            end if
             deallocate(klist_group)
         end if
         
@@ -416,6 +447,13 @@ subroutine calculate_eels_mpi(q_list,tag)
     
     deallocate(klist_local, counts, displs, ngroups_all)
 
+    ! Reduce matrix contributions from all processes if needed
+    if (write_matrix) then
+        call MPI_Reduce(matrix_contrib_local, matrix_contrib_global, &
+                        nbands*nbands*nomega*nqpts, MPI_DOUBLE_COMPLEX, &
+                        MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    end if
+
     if (rank == 0) then
         call calculate_eels(IPF*dS,q_list_cart,eloss)
         write(*,"(A,$)") "[Main] EELS calculation finished!"
@@ -426,8 +464,67 @@ subroutine calculate_eels_mpi(q_list,tag)
             write(*,*)
         end if
         call writeEELS(q_list_cart,omegalist,eloss)
+        ! Write matrix contributions if requested
+        if (write_matrix) then
+            call write_matrix_contributions(q_list_cart, omegalist, IPF, matrix_contrib_global, dS)
+        end if
     end if
 
 end subroutine calculate_eels_mpi
+
+subroutine write_matrix_contributions(q_list_cart, omegalist, IPF_total, matrix_contrib, dS)
+    use constants, only: prec, nbands, f_matrix, iband
+    use eels, only: V_q
+    real(prec), intent(in) :: q_list_cart(:,:), omegalist(:)
+    complex(prec), intent(in) :: IPF_total(:,:)  ! (nomega, nqpts)
+    complex(prec), intent(in) :: matrix_contrib(:,:,:,:)  ! (nbands, nbands, nomega, nqpts)
+    real(prec), intent(in) :: dS
+    integer :: iq, iomega, i, j, unit, nqpts, nomega
+    complex(prec) :: Vq, f_pi_ij, epsilon_ij, IPF_ij
+    complex(prec) :: epsilon_total, IPF_total_value
+    real(prec) :: q_vec(3), omega_val
+    integer :: ib_start, ib_end
+    
+    ib_start = iband(1)
+    ib_end = iband(2)
+    
+    nqpts = size(q_list_cart, 1)
+    nomega = size(omegalist)
+    
+    unit = 500
+    open(unit, file=f_matrix, status='replace', action='write')
+    
+    do iq = 1, nqpts
+        q_vec = q_list_cart(iq, :)
+        Vq = V_q(q_vec)
+        do iomega = 1, nomega
+            omega_val = omegalist(iomega)
+            ! Calculate total IPF for this (q, omega)
+            epsilon_total = 1.0_prec - Vq * IPF_total(iomega, iq)
+            IPF_total_value = -imag(1.0_prec / epsilon_total)
+            
+            ! Write comment line
+            write(unit, '(A,3F12.8,A,F12.8,A,F12.8)') '# q = [', q_vec, '] omega = ', omega_val, ' IPF_total = ', real(IPF_total_value)
+            
+            ! Write each transition contribution
+            do j = ib_start, ib_end   ! iband_k
+                do i = ib_start, ib_end   ! iband_kq
+                    ! Note: matrix indices are (iband_kq, iband_k)
+                    f_pi_ij = matrix_contrib(i, j, iomega, iq) * dS
+                    epsilon_ij = 1.0_prec - Vq * f_pi_ij
+                    IPF_ij = -imag(1.0_prec / epsilon_ij)
+                    write(unit, '(2I6,1X,F20.12)') i, j, real(IPF_ij)
+                end do
+            end do
+            
+            ! Blank line between blocks
+            write(unit, *)
+        end do
+    end do
+    
+    close(unit)
+    write(*, '(4X,A)') '[EELS] Transition matrix contributions written to file: '//trim(f_matrix)
+    
+end subroutine write_matrix_contributions
 
 end module mpi_solver

@@ -36,7 +36,6 @@ contains
         real(prec) :: R_vec(3),phase
         complex(prec) :: HR
 
-
         do i = 1,size(position_frac,1)
             do j = i,size(position_frac,1)
                 if (i==j) then

@@ -36,12 +36,14 @@ module constants
     logical :: kpt_select
     logical :: job_band
     logical :: write_band
+    logical :: write_matrix
     character(len=3) :: model_type
     character(len=64) :: f_input
     character(len=64) :: f_poscar
     character(len=64) :: f_eig
     character(len=64) :: f_kpoint
     character(len=64) :: f_wannier
+    character(len=64) :: f_matrix
     character(len=1) :: q_tag,job_type
     real(prec) :: basis(3,3), basis_rec(3,3)
     real(prec), allocatable :: position_frac(:,:), position_cart(:,:),omegalist(:),qlist(:,:)
@@ -59,10 +61,12 @@ contains
         kpt_select = .false.
         job_band = .false.
         write_band = .false.
+        write_matrix = .false.
         f_input='input.in'
         f_poscar='cont.vasp'
         f_eig='tb_band.dat'
         f_kpoint='KPOINTS'
+        f_matrix='tb_eels.mat'
         nk_path = 10
         ncache = 0
         nomega = 21
