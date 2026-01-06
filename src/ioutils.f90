@@ -259,16 +259,20 @@ contains
     end subroutine writeLabels
 
     subroutine writeEELS(q_list_cart,omega,eloss,filename)
-        use constants, only: nomega,temperature,delta,efermi
+        use constants, only: nomega,temperature,delta,efermi,f_eels
         real(prec), intent(in) :: q_list_cart(:,:),omega(:),eloss(:,:)
         character(len=64), intent(in), optional :: filename
-        character(len=64) :: fout = 'tb_eels.dat'
+        character(len=64) :: fout
         integer :: unit,iomega,iq,nqpts
 
         unit = 400
         nqpts = size(q_list_cart,1)
-        if (present(filename)) fout = filename
-        write(*,"(A,1X,A)") "[IO] Wrinting EELS data to file:",fout
+        if (present(filename)) then
+            fout = filename
+        else
+            fout = f_eels
+        end if
+        write(*,"(A,1X,A)") "[IO] Wrinting EELS data to file:",trim(fout)
         
         open(unit, file=fout, status='replace', action='write')
             write(unit,"(A,F8.4,A,F8.4,A,F8.4,A,I8)") "# T=",temperature,"; delta=",delta*1000," meV; E-fermi=",efermi," eV"
@@ -281,5 +285,69 @@ contains
         close(unit)
 
     end subroutine writeEELS
+
+    subroutine writeEELSmatrix(q_list_cart, IPF_total, matrix_contrib, dS, filename)
+        use constants, only: prec, nbands, f_matrix, iband, nomega, omegalist
+        use eels, only: V_q
+        real(prec), intent(in) :: q_list_cart(:,:)
+        complex(prec), intent(in) :: IPF_total(:,:)  ! (nomega, nqpts)
+        complex(prec), intent(in) :: matrix_contrib(:,:,:,:)  ! (nbands, nbands, nomega, nqpts)
+        real(prec), intent(in) :: dS
+        character(len=*), intent(in), optional :: filename
+        character(len=64) :: fout
+        integer :: iq, iomega, i_glob, j_glob, unit, nqpts
+        integer :: i_local, j_local
+        complex(prec) :: Vq, f_pi_ij, epsilon_ij, IPF_ij
+        complex(prec) :: epsilon_total, IPF_total_value
+        real(prec) :: q_vec(3), omega_val
+        integer :: ib_start
+        
+        ib_start = iband(1)
+        
+        nqpts = size(q_list_cart, 1)
+        
+        if (present(filename)) then
+            fout = filename
+        else
+            fout = f_matrix
+        end if
+        
+        unit = 500
+        open(unit, file=fout, status='replace', action='write')
+        
+        do iq = 1, nqpts
+            q_vec = q_list_cart(iq, :)
+            Vq = V_q(q_vec)
+            do iomega = 1, nomega
+                omega_val = omegalist(iomega)
+                ! Calculate total IPF for this (q, omega)
+                epsilon_total = 1.0_prec - Vq * IPF_total(iomega, iq)
+                IPF_total_value = -imag(1.0_prec / epsilon_total)
+                
+                ! Write comment line
+                write(unit, '(A,3F12.8,A,F12.8,A,F12.8)') '# q = [', q_vec, '] omega = ', omega_val, ' IPF_total = ', real(IPF_total_value)
+                
+                ! Write each transition contribution
+                do j_local = 1, nbands
+                    j_glob = j_local + ib_start - 1
+                    do i_local = 1, nbands
+                        i_glob = i_local + ib_start - 1
+                        ! Note: matrix indices are (iband_kq, iband_k) in local indexing
+                        f_pi_ij = matrix_contrib(i_local, j_local, iomega, iq) * dS
+                        epsilon_ij = 1.0_prec - Vq * f_pi_ij
+                        IPF_ij = -imag(1.0_prec / epsilon_ij)
+                        write(unit, '(2I6,1X,F20.12)') i_glob, j_glob, real(IPF_ij)
+                    end do
+                end do
+                
+                ! Blank line between blocks
+                write(unit, *)
+            end do
+        end do
+        
+        close(unit)
+        write(*, '(4X,A)') '[EELS] Transition matrix contributions written to file: '//trim(fout)
+        
+    end subroutine writeEELSmatrix
 
 end module ioutils

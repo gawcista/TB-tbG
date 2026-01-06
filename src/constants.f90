@@ -44,6 +44,7 @@ module constants
     character(len=64) :: f_kpoint
     character(len=64) :: f_wannier
     character(len=64) :: f_matrix
+    character(len=64) :: f_eels
     character(len=1) :: q_tag,job_type
     real(prec) :: basis(3,3), basis_rec(3,3)
     real(prec), allocatable :: position_frac(:,:), position_cart(:,:),omegalist(:),qlist(:,:)
@@ -67,6 +68,7 @@ contains
         f_eig='tb_band.dat'
         f_kpoint='KPOINTS'
         f_matrix='tb_eels.mat'
+        f_eels='tb_eels.dat'
         nk_path = 10
         ncache = 0
         nomega = 21

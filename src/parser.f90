@@ -49,6 +49,10 @@ contains
                         case ('FWANNIER')
                             model_type = 'wan'
                             read(line,*,iostat=io) tmp,f_wannier
+                        case('FEMATRIX')
+                            read(line,*,iostat=io) tmp,f_matrix   
+                        case('FEELS')
+                            read(line,*,iostat=io) tmp,f_eels
                         case ('IBAND')
                             band_select = .true.
                             read(line,*,iostat=io) tmp,iband
@@ -80,9 +84,7 @@ contains
                         case('MODEL')
                             read(line,*,iostat=io) tmp,model_type
                         case('WRITEM')
-                            read(line,*,iostat=io) tmp,write_matrix
-                        case('FEMATRIX')
-                            read(line,*,iostat=io) tmp,f_matrix         
+                            read(line,*,iostat=io) tmp,write_matrix      
                     end select
                                  
                 end if
