@@ -1,20 +1,20 @@
 module constants
     implicit none
-    logical, public :: timer_mpi
-    logical, public :: timer_cpu
-    logical, public :: timer_kcalc 
-    logical, public :: timer_debug 
+    logical, public :: timer_mpi = .true.
+    logical, public :: timer_cpu = .true.
+    logical, public :: timer_kcalc = .false. 
+    logical, public :: timer_debug = .false.
     logical, public :: write_hr = .false.
-    integer, parameter, public :: prec=SELECTED_REAL_KIND(15)
+    integer, parameter, public :: prec = SELECTED_REAL_KIND(15)
     real(prec), parameter, public :: pi = 3.14159265358979323846
     real(prec), parameter, public :: k_B = 8.617333262145179e-05 ! Boltzmann constant in eV/K
     real(prec), parameter, public :: epsilon_0_SI = 8.8541878188e-12 ! 
-    real(prec), parameter, public :: epsilon_r = 4.9 ! from PhysRevB.102.125403
+    real(prec), public :: epsilon_r = 4.9 ! from PhysRevB.102.125403
     real(prec), parameter, public :: elec = 1.602176634e-19
     ! hoppings
-    real(prec), parameter, public :: onsite = -0.78_prec ! on-site energy (eV)
-    real(prec), parameter, public :: gamma0 = 2.7_prec ! 1-st NN hopping (eV)
-    real(prec), parameter, public :: gamma1 = 0.48_prec ! interlayer coupling (eV)
+    real(prec), public :: onsite = -0.78_prec ! on-site energy (eV)
+    real(prec), public :: gamma0 = 2.7_prec ! 1-st NN hopping (eV)
+    real(prec), public :: gamma1 = 0.48_prec ! interlayer coupling (eV)
     ! geometric parameters (tbG)
     real(prec), parameter :: a0 = 2.4684713048999796_prec ! lattice constant (AA)
     real(prec), parameter :: a_d = a0/3_prec**0.5_prec ! C-C distance (AA)
@@ -54,10 +54,6 @@ module constants
     integer ::  rank, nproc, ncache
 contains
     subroutine init_constants()
-        timer_mpi = .true.
-        timer_cpu = .true.
-        timer_kcalc = .false.
-        timer_debug = .false.
         band_select = .false.
         kpt_select = .false.
         job_band = .false.

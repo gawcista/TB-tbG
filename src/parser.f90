@@ -85,6 +85,8 @@ contains
                             read(line,*,iostat=io) tmp,model_type
                         case('WRITEM')
                             read(line,*,iostat=io) tmp,write_matrix      
+                        case('EPSILON')
+                            read(line,*,iostat=io) tmp,epsilon_r
                     end select
                                  
                 end if
