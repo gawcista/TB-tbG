@@ -85,8 +85,14 @@ contains
                             read(line,*,iostat=io) tmp,model_type
                         case('WRITEM')
                             read(line,*,iostat=io) tmp,write_matrix      
-                        case('EPSILON')
+                        case('TB_EPSILON')
                             read(line,*,iostat=io) tmp,epsilon_r
+                        case('TB_ONSITE')
+                            read(line,*,iostat=io) tmp,onsite
+                        case('TB_GAMMA0')
+                            read(line,*,iostat=io) tmp,gamma0
+                        case('TB_GAMMA1')
+                            read(line,*,iostat=io) tmp,gamma1
                     end select
                                  
                 end if
