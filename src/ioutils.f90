@@ -350,4 +350,52 @@ contains
         
     end subroutine writeEELSmatrix
 
+    subroutine writeDOS(energy_grid, dos, filename)
+        use constants, only: prec, sigma_dos, erange, nedos, f_dos, gaussian_cutoff
+        real(prec), intent(in) :: energy_grid(:), dos(:)
+        character(len=64), intent(in), optional :: filename
+        character(len=64) :: fout
+        integer :: unit, i, npoints
+        real :: t_start, t_end
+
+        call cpu_time(t_start)
+
+        npoints = size(energy_grid)
+        if (npoints /= size(dos)) then
+            write(*,*) "[IO] Error: energy_grid and dos arrays have different sizes"
+            return
+        end if
+
+        if (present(filename)) then
+            fout = filename
+        else
+            fout = f_dos
+        end if
+
+        write(*,"(A,1X,A)") "[IO] Writing DOS data to file:", trim(fout)
+
+        open(unit=300, file=fout, status='replace', action='write')
+            ! 写入文件头信息
+            write(300, "(A)") "# TB-tbG DOS Calculation"
+            write(300, "(A, F10.6, A)") "# Sigma = ", sigma_dos, " eV"
+            write(300, "(A, F10.6, A, F10.6, A)") "# Energy range: ", erange(1), " to ", erange(2), " eV"
+            write(300, "(A, I8)") "# NEDOS = ", nedos
+            write(300, "(A, L)") "# Gaussian cutoff enabled: ", (gaussian_cutoff > 0.0_prec)
+            if (gaussian_cutoff > 0.0_prec) then
+                write(300, "(A, F10.6)") "# Gaussian cutoff factor = ", gaussian_cutoff
+            end if
+            write(300, "(A)") "# Note: DOS values are raw sum of Gaussian contributions, not normalized"
+            write(300, "(A)") "#"
+            write(300, "(A)") "# Energy(eV)   DOS"
+
+            ! 写入数据
+            do i = 1, npoints
+                write(300, '(2ES20.10)') energy_grid(i), dos(i)
+            end do
+        close(300)
+
+        call cpu_time(t_end)
+        write(*, '(A,1X,F8.3,A)') "[IO] Done! Time elapsed (s): ", t_end - t_start
+    end subroutine writeDOS
+
 end module ioutils

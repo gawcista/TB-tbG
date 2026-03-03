@@ -53,6 +53,8 @@ contains
                             read(line,*,iostat=io) tmp,f_matrix   
                         case('FEELS')
                             read(line,*,iostat=io) tmp,f_eels
+                        case('FDOS')
+                            read(line,*,iostat=io) tmp,f_dos
                         case ('IBAND')
                             band_select = .true.
                             read(line,*,iostat=io) tmp,iband
@@ -64,6 +66,10 @@ contains
                         case ('OMEGA')
                             read(line,*,iostat=io) tmp,nomega,omega_i,omega_f
                             call set_omegalist(omega_i,omega_f)
+                        case ('NEDOS')
+                            read(line,*,iostat=io) tmp,nedos
+                        case ('ERANGE')
+                            read(line,*,iostat=io) tmp,erange(1),erange(2)
                         case ('QPOINT')
                             read(line,*,iostat=io) tmp,nqpts,q_start,q_end
                             call generate_kline(nqpts,q_start,q_end,qlist)
@@ -75,6 +81,10 @@ contains
                             read(line,*,iostat=io) tmp,temperature
                         case ('DELTA')
                             read(line,*,iostat=io) tmp,delta
+                        case ('SIGMA')
+                            read(line,*,iostat=io) tmp,sigma_dos
+                        case ('GAUSSIAN_CUTOFF')
+                            read(line,*,iostat=io) tmp,gaussian_cutoff
                         case('CALC_IQR')
                             read(line,*,iostat=io) tmp,calc_iqr
                         case('TMPI')

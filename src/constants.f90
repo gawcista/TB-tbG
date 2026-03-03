@@ -45,11 +45,13 @@ module constants
     character(len=64) :: f_wannier
     character(len=64) :: f_matrix
     character(len=64) :: f_eels
+    character(len=64) :: f_dos
     character(len=1) :: q_tag,job_type
     real(prec) :: basis(3,3), basis_rec(3,3)
     real(prec), allocatable :: position_frac(:,:), position_cart(:,:),omegalist(:),qlist(:,:)
     integer :: nk_path,eels_mode
-    integer :: nions,nbands,nomega,iband(2)
+    integer :: nions,nbands,nomega,iband(2),nedos
+    real(prec) :: sigma_dos, gaussian_cutoff, erange(2)
 
     integer ::  rank, nproc, ncache
 contains
@@ -65,6 +67,7 @@ contains
         f_kpoint='KPOINTS'
         f_matrix='tb_eels.mat'
         f_eels='tb_eels.dat'
+        f_dos='tb_dos.dat'
         nk_path = 10
         ncache = 0
         nomega = 21
@@ -74,6 +77,11 @@ contains
         model_type = "tbg"
         f_wannier = 'wannier90'
         eels_mode = 0
+        ! DOS parameters
+        sigma_dos = 0.01_prec
+        gaussian_cutoff = 0.0_prec
+        nedos = 1001
+        erange = [-1.0_prec, 1.0_prec]
         call set_omegalist(0._prec,0.1_prec)
 
     end subroutine init_constants

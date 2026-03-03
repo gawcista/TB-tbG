@@ -31,14 +31,25 @@ Key inputs & examples
   - Mesh mode: `G` or `M` supported to generate Gamma/Monkhorst-Pack grids.
 - EELS example (from README): uses `JOB E`, `OMEGA`, `QPOINT`, `QTAG`.
   - `QTAG D` means q in fractional (`direct`) coordinates, `C` means Cartesian.
+- DOS example: uses `JOB D`, `SIGMA`, `NEDOS`, `ERANGE`, `FDOS`, `GAUSSIAN_CUTOFF`.
+  ```text
+  JOB D
+  FPOSCAR cont.vasp
+  FKPOINTS KPOINTS
+  SIGMA 0.01
+  NEDOS 1001
+  ERANGE -1.0 1.0
+  FDOS tb_dos.dat
+  GAUSSIAN_CUTOFF 5.0
+  ```
 
 Important code locations (quick map)
 - `src/constants.f90` — global defaults and `init_constants()` (kinds, defaults: `f_input`, `f_poscar`, `f_eig`, `f_kpoint`, `model_type`, `nomega`, `ncache`).
-- `src/parser.f90` — input keyword handling (explicit keywords: JOB, FPOSCAR, FEIGEN, FKPOINTS, FWANNIER, IBAND, NCACHE, EELSMODE, OMEGA, QPOINT, QTAG, EFERMI, TEMPERATURE, DELTA, CALC_IQR, TMPI, TDEBUG, MODEL).
-- `src/main.f90` — MPI initialization and job dispatch (`B` for band, `E` for EELS).
+- `src/parser.f90` — input keyword handling (explicit keywords: JOB, FPOSCAR, FEIGEN, FKPOINTS, FWANNIER, IBAND, NCACHE, EELSMODE, OMEGA, QPOINT, QTAG, EFERMI, TEMPERATURE, DELTA, CALC_IQR, TMPI, TDEBUG, MODEL, SIGMA, NEDOS, ERANGE, FDOS, GAUSSIAN_CUTOFF).
+- `src/main.f90` — MPI initialization and job dispatch (`B` for band, `D` for DOS, `E` for EELS).
 - `src/mpi_solver.f90` — MPI orchestration, workload partition (`calculate_workload`), broadcasting, and collection patterns.
 - `src/solver.f90` — serial solver wrapper (calls `build_H` then LAPACK `zheevr` via `interface.f90`).
-- `src/ioutils.f90` — POSCAR/KPOINTS parsing and result writers (`writeBand`, `writeEELS`).
+- `src/ioutils.f90` — POSCAR/KPOINTS parsing and result writers (`writeBand`, `writeEELS`, `writeDOS`).
 - `src/eels.f90` — physics of EELS (`calculate_IPF_klist`, `calculate_eels`).
 
 Project conventions and patterns to follow

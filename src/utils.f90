@@ -227,4 +227,39 @@ contains
     
 
     
+    function gaussian(x, sigma) result(g)
+        real(prec), intent(in) :: x, sigma
+        real(prec) :: g
+        real(prec), parameter :: sqrt_pi = 1.7724538509055160273_prec
+        g = exp(-(x/sigma)**2) / (sigma * sqrt_pi)
+    end function gaussian
+
+    subroutine add_gaussian_to_dos(epsilon, sigma, cutoff, energy_grid, dos)
+        real(prec), intent(in) :: epsilon, sigma, cutoff
+        real(prec), intent(in) :: energy_grid(:)
+        real(prec), intent(inout) :: dos(:)
+        integer :: i, n
+        real(prec) :: arg, prefactor, delta_e
+
+        n = size(energy_grid)
+        if (cutoff <= 0.0_prec) then
+            ! 无截断模式：计算所有点
+            prefactor = 1.0_prec / (sigma * sqrt(pi))
+            do i = 1, n
+                arg = (energy_grid(i) - epsilon) / sigma
+                dos(i) = dos(i) + prefactor * exp(-arg*arg)
+            end do
+        else
+            ! 截断模式：仅计算|E-ε| < cutoff*σ的点
+            prefactor = 1.0_prec / (sigma * sqrt(pi))
+            do i = 1, n
+                delta_e = energy_grid(i) - epsilon
+                if (abs(delta_e) < cutoff * sigma) then
+                    arg = delta_e / sigma
+                    dos(i) = dos(i) + prefactor * exp(-arg*arg)
+                end if
+            end do
+        end if
+    end subroutine add_gaussian_to_dos
+
 end module utils

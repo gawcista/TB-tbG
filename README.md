@@ -7,6 +7,7 @@ TB-tbG is a Fortran-based program designed for computing electronic properties o
 Key capabilities include:
 
 - **Band structure calculation**: Compute the electronic band structure along high-symmetry k‑paths.
+- **Density of States (DOS) calculation**: Compute the density of states using Gaussian broadening on k‑point meshes.
 - **Electron Energy Loss Spectroscopy (EELS)**: Calculate the loss function for a given momentum transfer (q) range.
 - **MPI‑parallelized computations**: Efficiently distribute k‑point workloads across multiple processes.
 - **Flexible input system**: Configure calculations via a simple text file (`input.in`).

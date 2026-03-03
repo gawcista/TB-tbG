@@ -472,4 +472,154 @@ subroutine calculate_eels_mpi(q_list,tag)
 
 end subroutine calculate_eels_mpi
 
+    subroutine calculate_dos_mpi()
+        use constants, only: prec,rank,kpt_select,f_kpoint,nk_path,nedos,erange,sigma_dos,gaussian_cutoff,f_dos
+        use ioutils, only: readKPOINTS,writeDOS
+        use utils, only: generate_mesh_gamma, generate_mesh_mp
+        real(prec), allocatable :: klist_frac(:,:), dos(:)
+        real(prec), allocatable :: energy_grid(:)
+        integer :: ierr,nkpts,i
+
+        if (rank == 0) then
+            write(*,"(A)") "[DOS] Starting DOS calculation"
+            ! 生成能量网格
+            allocate(energy_grid(nedos))
+            do i = 1, nedos
+                energy_grid(i) = erange(1) + (erange(2)-erange(1))*(i-1)/(nedos-1)
+            end do
+
+            ! 读取k点网格
+            if (kpt_select) then
+                call readKPOINTS(f_kpoint, klist_frac)
+            else
+                ! 默认使用Gamma中心的均匀网格
+                ! 如果KPOINTS文件不存在，需要生成默认网格
+                ! 这里先尝试读取文件，如果失败则生成默认网格
+                call readKPOINTS(f_kpoint, klist_frac)
+            end if
+            nkpts = size(klist_frac,1)
+            write(*,"(A,I8)") "[DOS] Number of k-points: ", nkpts
+        end if
+
+        ! 广播能量网格和k点信息
+        call MPI_Bcast(nedos, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        if (rank /= 0) allocate(energy_grid(nedos))
+        call MPI_Bcast(energy_grid, nedos, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+
+        call MPI_Bcast(nkpts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        if (.not. allocated(klist_frac)) allocate(klist_frac(nkpts,3))
+        call MPI_Bcast(klist_frac, nkpts*3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+
+        ! 调用核心DOS计算函数
+        call calculate_dos_klist_mpi(klist_frac, energy_grid, dos)
+
+        if (rank == 0) then
+            ! 输出DOS结果
+            call writeDOS(energy_grid, dos, f_dos)
+            write(*,"(A)") "[DOS] DOS calculation completed"
+        end if
+
+        deallocate(energy_grid)
+        if (allocated(klist_frac)) deallocate(klist_frac)
+        if (allocated(dos)) deallocate(dos)
+    end subroutine calculate_dos_mpi
+
+    subroutine calculate_dos_klist_mpi(klist, energy_grid, dos)
+        use constants, only: prec,ncache,nbands,nions,nproc,rank,timer_mpi,timer_cpu,sigma_dos,gaussian_cutoff
+        use utils, only: k2frac_list, add_gaussian_to_dos
+        use solver, only: calculate_klist
+        integer :: ierr
+        real(prec), intent(in) :: klist(:,:)
+        real(prec), intent(in) :: energy_grid(:)
+        real(prec), intent(out), allocatable :: dos(:)
+
+        integer :: nkpts,nkpts_local,ik_start,ik_end
+        real :: t_start,t_end, t_mpi
+        integer,allocatable :: counts(:), displs(:), ngroups_all(:)
+        real(prec), allocatable :: eig_group(:,:)
+        real(prec), allocatable :: klist_local(:,:), klist_group(:,:)
+        integer :: ngroups, maxgroups, igroup, group_start, group_end, group_size
+        integer :: i, j, iband
+        type(MPI_Status) :: mpi_status
+        integer :: i_nkpts_local, i_ik_start, i_group_start_local, i_group_end_local, i_group_size, i_group_start_global
+        real(prec), allocatable :: dos_local(:), dos_recv(:)
+        real(prec), allocatable :: eig_recv(:,:)
+
+        nkpts = size(klist,1)
+        allocate(counts(nproc), displs(nproc), ngroups_all(nproc))
+        if (rank == 0) then
+            call calculate_workload(nkpts, nproc, counts, displs,ngroups_all)
+        end if
+        call MPI_Bcast(counts, nproc, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        call MPI_Bcast(displs, nproc, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        call MPI_Bcast(ngroups_all, nproc, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+
+        nkpts_local = counts(rank+1)
+        ik_start = displs(rank+1) + 1
+        ik_end = ik_start + nkpts_local - 1
+
+        ! 初始化局部DOS数组
+        allocate(dos_local(size(energy_grid)))
+        dos_local = 0.0_prec
+
+        ! 转换k点坐标（如果需要）
+        allocate(klist_local(nkpts_local,3))
+        klist_local = klist(ik_start:ik_end,:)
+
+        write(*, '(4X,A,1X,I4,1X,A,I4)') "[DOS]", nkpts_local, "k-points was assigned to rank", rank
+
+        if (rank == 0) then
+            allocate(dos(size(energy_grid)))
+            dos = 0.0_prec
+        end if
+
+        call cpu_time(t_start)
+
+        ngroups = ngroups_all(rank+1)
+        maxgroups = maxval(ngroups_all)
+
+        do igroup = 1, maxgroups
+            if (timer_mpi) call cpu_time(t_mpi)
+            if (igroup <= ngroups) then
+                group_start = (igroup - 1) * ncache + 1
+                group_end = min(igroup * ncache, nkpts_local)
+                group_size = group_end - group_start + 1
+
+                allocate(klist_group(group_size, 3))
+                klist_group = klist_local(group_start:group_end, :)
+
+                allocate(eig_group(nbands, group_size))
+                call calculate_klist(klist_group, eig_group)
+
+                ! 对每个本征值累加高斯贡献到局部DOS
+                do i = 1, group_size
+                    do iband = 1, nbands
+                        call add_gaussian_to_dos(eig_group(iband, i), sigma_dos, gaussian_cutoff, energy_grid, dos_local)
+                    end do
+                end do
+
+                deallocate(eig_group, klist_group)
+            end if
+
+            if (timer_mpi .and. igroup <= ngroups) then
+                call cpu_time(t_end)
+                write(*, '(4X,A,1X,I4,1X,A,I3,A,I3,1X,A,F12.3)') &
+                    "[DOS] Rank", rank, "group", igroup, "/", ngroups, &
+                    "finished! CPU time:", t_end-t_mpi
+            end if
+        end do
+
+        ! 使用MPI_Reduce收集所有进程的DOS贡献
+        call MPI_Reduce(dos_local, dos, size(energy_grid), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+
+        if (timer_cpu)  then
+            call cpu_time(t_end)
+            write(*, '(4X,A,1X,I4,1X,A,F12.3)') "[DOS] Calculationg on rank",rank,&
+                                             'finished! CPU time:', t_end-t_start
+        end if
+
+        deallocate(klist_local, counts, displs, ngroups_all, dos_local)
+        if (rank /= 0 .and. allocated(dos)) deallocate(dos)
+    end subroutine calculate_dos_klist_mpi
+
 end module mpi_solver
