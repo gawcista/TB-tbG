@@ -478,43 +478,45 @@ end subroutine calculate_eels_mpi
         use utils, only: generate_mesh_gamma, generate_mesh_mp
         real(prec), allocatable :: klist_frac(:,:), dos(:)
         real(prec), allocatable :: energy_grid(:)
-        integer :: ierr,nkpts,i
+        integer :: ierr,nkpts,i,nedos_local
 
         if (rank == 0) then
             write(*,"(A)") "[DOS] Starting DOS calculation"
-            ! 生成能量网格
+            ! Generate energy grid
             allocate(energy_grid(nedos))
             do i = 1, nedos
                 energy_grid(i) = erange(1) + (erange(2)-erange(1))*(i-1)/(nedos-1)
             end do
 
-            ! 读取k点网格
+            ! Read k-point grid
             if (kpt_select) then
                 call readKPOINTS(f_kpoint, klist_frac)
             else
-                ! 默认使用Gamma中心的均匀网格
-                ! 如果KPOINTS文件不存在，需要生成默认网格
-                ! 这里先尝试读取文件，如果失败则生成默认网格
+                ! Default: use Gamma-centered uniform mesh
+                ! If KPOINTS file doesn't exist, generate default mesh
+                ! Try reading file first, generate default mesh if fails
                 call readKPOINTS(f_kpoint, klist_frac)
             end if
             nkpts = size(klist_frac,1)
             write(*,"(A,I8)") "[DOS] Number of k-points: ", nkpts
         end if
 
-        ! 广播能量网格和k点信息
-        call MPI_Bcast(nedos, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-        if (rank /= 0) allocate(energy_grid(nedos))
-        call MPI_Bcast(energy_grid, nedos, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
+        ! Broadcast energy grid and k-point info
+        nedos_local = nedos
+        if (rank == 0) write(*,"(A,I8)") "[DOS] Broadcasting nedos = ", nedos_local
+        call MPI_Bcast(nedos_local, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        if (rank /= 0) allocate(energy_grid(nedos_local))
+        call MPI_Bcast(energy_grid, nedos_local, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
 
         call MPI_Bcast(nkpts, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         if (.not. allocated(klist_frac)) allocate(klist_frac(nkpts,3))
         call MPI_Bcast(klist_frac, nkpts*3, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, ierr)
 
-        ! 调用核心DOS计算函数
+        ! Call core DOS calculation function
         call calculate_dos_klist_mpi(klist_frac, energy_grid, dos)
 
         if (rank == 0) then
-            ! 输出DOS结果
+            ! Output DOS results
             call writeDOS(energy_grid, dos, f_dos)
             write(*,"(A)") "[DOS] DOS calculation completed"
         end if
@@ -525,7 +527,7 @@ end subroutine calculate_eels_mpi
     end subroutine calculate_dos_mpi
 
     subroutine calculate_dos_klist_mpi(klist, energy_grid, dos)
-        use constants, only: prec,ncache,nbands,nions,nproc,rank,timer_mpi,timer_cpu,sigma_dos,gaussian_cutoff
+        use constants, only: prec,ncache,nbands,nions,nproc,rank,timer_mpi,timer_cpu,sigma_dos,gaussian_cutoff,dos_normalize
         use utils, only: k2frac_list, add_gaussian_to_dos
         use solver, only: calculate_klist
         integer :: ierr
@@ -558,11 +560,11 @@ end subroutine calculate_eels_mpi
         ik_start = displs(rank+1) + 1
         ik_end = ik_start + nkpts_local - 1
 
-        ! 初始化局部DOS数组
+        ! Initialize local DOS array
         allocate(dos_local(size(energy_grid)))
         dos_local = 0.0_prec
 
-        ! 转换k点坐标（如果需要）
+        ! Convert k-point coordinates (if needed)
         allocate(klist_local(nkpts_local,3))
         klist_local = klist(ik_start:ik_end,:)
 
@@ -591,7 +593,7 @@ end subroutine calculate_eels_mpi
                 allocate(eig_group(nbands, group_size))
                 call calculate_klist(klist_group, eig_group)
 
-                ! 对每个本征值累加高斯贡献到局部DOS
+                ! Add Gaussian contribution from each eigenvalue to local DOS
                 do i = 1, group_size
                     do iband = 1, nbands
                         call add_gaussian_to_dos(eig_group(iband, i), sigma_dos, gaussian_cutoff, energy_grid, dos_local)
@@ -609,8 +611,14 @@ end subroutine calculate_eels_mpi
             end if
         end do
 
-        ! 使用MPI_Reduce收集所有进程的DOS贡献
+        ! Use MPI_Reduce to gather DOS contributions from all processes
         call MPI_Reduce(dos_local, dos, size(energy_grid), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+
+        ! Apply k-point normalization on rank 0 if requested
+        if (rank == 0 .and. dos_normalize) then
+            dos = dos / real(nkpts, prec)
+            write(*,"(A,I8)") "[DOS] Applied k-point normalization, Nk = ", nkpts
+        end if
 
         if (timer_cpu)  then
             call cpu_time(t_end)

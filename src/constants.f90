@@ -18,9 +18,9 @@ module constants
     ! geometric parameters (tbG)
     real(prec), parameter :: a0 = 2.4684713048999796_prec ! lattice constant (AA)
     real(prec), parameter :: a_d = a0/3_prec**0.5_prec ! C-C distance (AA)
-    real(prec), parameter :: d0 = 3.39602082978717_prec ! layer distance (AA)
+    real(prec), parameter :: d0 = 3.380180130823483_prec ! layer distance (AA)
     real(prec), parameter :: l_c = 0.265_prec ! cutoff ratio (AA)
-    real(prec), parameter :: r_c = a0*2.5_prec ! layer distance
+    real(prec), parameter :: r_c = a0*2.5_prec ! cutoff distance
     ! geometric parameters (plasmon)
     logical :: calc_iqr
     real(prec) :: delta ! broadening
@@ -52,6 +52,7 @@ module constants
     integer :: nk_path,eels_mode
     integer :: nions,nbands,nomega,iband(2),nedos
     real(prec) :: sigma_dos, gaussian_cutoff, erange(2)
+    logical :: dos_normalize
 
     integer ::  rank, nproc, ncache
 contains
@@ -82,6 +83,7 @@ contains
         gaussian_cutoff = 0.0_prec
         nedos = 1001
         erange = [-1.0_prec, 1.0_prec]
+        dos_normalize = .true.
         call set_omegalist(0._prec,0.1_prec)
 
     end subroutine init_constants

@@ -243,14 +243,14 @@ contains
 
         n = size(energy_grid)
         if (cutoff <= 0.0_prec) then
-            ! 无截断模式：计算所有点
+            ! No cutoff mode: compute all points
             prefactor = 1.0_prec / (sigma * sqrt(pi))
             do i = 1, n
                 arg = (energy_grid(i) - epsilon) / sigma
                 dos(i) = dos(i) + prefactor * exp(-arg*arg)
             end do
         else
-            ! 截断模式：仅计算|E-ε| < cutoff*σ的点
+            ! Cutoff mode: only compute points where |E-ε| < cutoff*σ
             prefactor = 1.0_prec / (sigma * sqrt(pi))
             do i = 1, n
                 delta_e = energy_grid(i) - epsilon

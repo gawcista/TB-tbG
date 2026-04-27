@@ -85,6 +85,8 @@ contains
                             read(line,*,iostat=io) tmp,sigma_dos
                         case ('GAUSSIAN_CUTOFF')
                             read(line,*,iostat=io) tmp,gaussian_cutoff
+                        case ('DOS_NORMALIZE')
+                            read(line,*,iostat=io) tmp,dos_normalize
                         case('CALC_IQR')
                             read(line,*,iostat=io) tmp,calc_iqr
                         case('TMPI')

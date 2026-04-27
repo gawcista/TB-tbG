@@ -201,7 +201,6 @@ contains
         character(len=3), intent(in), optional :: style
         integer, intent(in), optional :: istart,iend
         character(len=3) :: dstyle = 'gnu'
-        character(len=64) :: fout
         integer :: unit, i, j, nkpoints, ib_start, ib_end
         real :: t_start,t_end
         
@@ -223,7 +222,7 @@ contains
         else
             ib_end = nbands
         end if
-        write(*,'(A,I4,A,I4,1X,A,1X,I5,1X,A,1X,A,1X)') "[IO] Writing band ",ib_start,"-",ib_end,"on",nkpoints,"k-points to",fout
+        write(*,'(A,I4,A,I4,1X,A,1X,I5,1X,A,1X,A,1X)') "[IO] Writing band ",ib_start,"-",ib_end,"on",nkpoints,"k-points to",f_eig
         open(unit, file=f_eig, status='replace', action='write')
             if (dstyle == 'gnu') then
                 write(*,'(A,1X,A,1X,$)') "[IO] Output style: gnuplot"
@@ -375,7 +374,7 @@ contains
         write(*,"(A,1X,A)") "[IO] Writing DOS data to file:", trim(fout)
 
         open(unit=300, file=fout, status='replace', action='write')
-            ! 写入文件头信息
+            ! Write file header information
             write(300, "(A)") "# TB-tbG DOS Calculation"
             write(300, "(A, F10.6, A)") "# Sigma = ", sigma_dos, " eV"
             write(300, "(A, F10.6, A, F10.6, A)") "# Energy range: ", erange(1), " to ", erange(2), " eV"
@@ -384,11 +383,11 @@ contains
             if (gaussian_cutoff > 0.0_prec) then
                 write(300, "(A, F10.6)") "# Gaussian cutoff factor = ", gaussian_cutoff
             end if
-            write(300, "(A)") "# Note: DOS values are raw sum of Gaussian contributions, not normalized"
+            write(300, "(A, L)") "# DOS normalized (divided by Nkpts): ", dos_normalize
             write(300, "(A)") "#"
             write(300, "(A)") "# Energy(eV)   DOS"
 
-            ! 写入数据
+            ! Write data
             do i = 1, npoints
                 write(300, '(2ES20.10)') energy_grid(i), dos(i)
             end do
