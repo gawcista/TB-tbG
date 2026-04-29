@@ -11,12 +11,18 @@ contains
         use constants, only: rank,nproc,init_constants
         use parser, only: input_parser
         integer :: ierr
+        character(len=64) :: input_file
 
         call MPI_Init(ierr)
         call MPI_Comm_rank(MPI_COMM_WORLD, rank, ierr)
         call MPI_Comm_size(MPI_COMM_WORLD, nproc, ierr)
         call init_constants()
-        call input_parser()
+        if (command_argument_count() >= 1) then
+            call get_command_argument(1, input_file)
+            call input_parser(input_file)
+        else
+            call input_parser()
+        end if
     end subroutine init_mpi
 
     subroutine init_POSCAR_mpi(filename)

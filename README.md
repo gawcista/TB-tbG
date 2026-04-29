@@ -37,8 +37,8 @@ The code is written in modern Fortran with modular design, separating physical m
 
    The Makefile uses the following default settings:
    - Compiler: `mpiifx`
-   - Flags: `-O2 -qmkl -module build -Ibuild`
-   - Linking: `-qmkl`
+   - Flags: `-O2 -qmkl -qopenmp -module build -Ibuild -xHost`
+   - Linking: `-qmkl -qopenmp`
    - Object and module files are placed in the `build/` directory.
 
 3. Clean the build:
@@ -60,6 +60,21 @@ The code is written in modern Fortran with modular design, separating physical m
    FPOSCAR cont.vasp
    FEIGEN tb_band.dat
    FKPOINTS KPOINTS.band
+   NCACHE 1
+   ```
+
+   A minimal example for a DOS calculation (`JOB D`):
+   ```plaintext
+   JOB D
+   FPOSCAR cont.vasp
+   FKPOINTS KPOINTS
+   SIGMA 0.1
+   NEDOS 1001
+   ERANGE -5.0 5.0
+   FDOS tb_dos.dat
+   DOS_NORMALIZE .true.
+   GAUSSIAN_CUTOFF 5.0
+   NCACHE 1
    ```
 
 ### Running the Program
@@ -74,9 +89,23 @@ The code is written in modern Fortran with modular design, separating physical m
   ./tbsolver
   ```
 
+By default, the program reads `input.in`. A different input file can be passed as the first command-line argument:
+```bash
+./tbsolver input.band
+mpirun -n 4 ./tbsolver input.dos
+```
+
+For memory‑limited runs, keep `NCACHE` small. The default `NCACHE 0` uses the lowest-memory automatic mode, processing one k point per group. For pure MPI runs, it is often useful to avoid thread oversubscription:
+```bash
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+mpirun -n 4 ./tbsolver
+```
+
 ### Output Files
 Depending on the job type, the program produces:
 - **Band structure**: File specified by `FEIGEN` (default `tb_band.dat`) contains k‑points along the path and corresponding eigenvalues.
+- **DOS results**: File specified by `FDOS` (default `tb_dos.dat`) contains energy and DOS columns. With `DOS_NORMALIZE .true.`, the DOS is divided by the number of k points and is reported in states/eV per cell.
 - **EELS results**: Loss function and related quantities are written to files with names derived from the `QTAG` keyword.
 
 ## 4. Input Keywords (input.in)
@@ -85,13 +114,19 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 
 | Keyword | Arguments | Description |
 |---------|-----------|-------------|
-| **JOB** | `B` or `E` | Type of calculation:<br>`B` – Band structure<br>`E` – Electron Energy Loss Spectroscopy (EELS) |
+| **JOB** | `B`, `D`, or `E` | Type of calculation:<br>`B` – Band structure<br>`D` – Density of States (DOS)<br>`E` – Electron Energy Loss Spectroscopy (EELS) |
 | **FPOSCAR** | `<filename>` | Path to the VASP‑format POSCAR file (default: `cont.vasp`) |
 | **FEIGEN** | `<filename>` | Output file for band eigenvalues (default: `tb_band.dat`). Also enables band‑structure writing. |
-| **FKPOINTS** | `<filename>` | VASP‑format file containing k‑point path definitions (default: `KPOINTS`). If present, enables k‑point selection. |
+| **FDOS** | `<filename>` | Output file for DOS data (default: `tb_dos.dat`). |
+| **FKPOINTS** | `<filename>` | VASP‑format file containing k‑point definitions (default: `KPOINTS`). Line mode is used for band paths; Gamma or Monkhorst-Pack mesh mode is used for DOS and EELS meshes. |
 | **FWANNIER** | `<filename>` | Path to the Wannier90 input file (default: `wannier90`). If present, sets model type to Wannier (`wan`). |
 | **IBAND** | `<iband_start> <iband_end>` | Select a specific range of bands to compute (1‑based indices). Enables band selection. |
 | **NCACHE** | `<integer>` | Cache size for intermediate arrays (default: 0 – automatic low-memory mode, one k point per group). This number determines how many numbers of k points would be calculated together on each rank. Less number of `ncache` reduce memory cost on each worker rank but brings higher MPI communication cost.|
+| **NEDOS** | `<integer>` | Number of DOS energy grid points (default: 1001). Must be greater than 1. |
+| **ERANGE** | `<emin> <emax>` | Energy range in eV for DOS (default: `-1.0 1.0`). The upper bound must be greater than the lower bound. |
+| **SIGMA** | `<broadening>` | Gaussian broadening for DOS in eV (default: 0.01). Must be positive. |
+| **GAUSSIAN_CUTOFF** | `<factor>` | Optional DOS Gaussian cutoff in units of `SIGMA` (default: 0.0, disabled). A positive value limits the energy window for faster DOS accumulation. |
+| **DOS_NORMALIZE** | `<logical>` | Whether to divide DOS by the number of k points (default: `.true.`). This gives states/eV per cell for the selected band set. |
 | **EELSMODE** | `<integer>` | Select EELS calculation mode: 0 for full calculation, 1 for intraband only, 2 for interband only. |
 | **OMEGA** | `<nomega> <omega_i> <omega_f>` | Define the energy (frequency) mesh for the loss function:<br>`nomega` – number of points<br>`omega_i` – starting energy (eV)<br>`omega_f` – ending energy (eV) |
 | **QPOINT** | `<nqpts> <qx1 qy1 qz1> <qx2 qy2 qz2>` | Define a q‑point path for EELS:<br>`nqpts` – number of q‑points along the line<br>`(qx1, qy1, qz1)` – start point in reciprocal fractional coordinates<br>`(qx2, qy2, qz2)` – end point |
@@ -105,6 +140,74 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 | **MODEL** | `<string>` | Model type selector: `tbg` for tight-binding graphene (default) or `wan` for Wannier model. |
 | **WRITEM** | `<logical>` | Whether to write the IPF matrix to file (default: `.false.`). |
 | **FEMATRIX** | `<filename>` | Output file for IPF matrix data (default: `tb_eels.mat`). |
+| **TB_EPSILON** | `<value>` | Relative dielectric constant used in EELS Coulomb interaction (default: 4.9). |
+| **TB_ONSITE** | `<value>` | Tight-binding onsite energy in eV (default: -0.78). |
+| **TB_GAMMA0** | `<value>` | Intralayer nearest-neighbor hopping parameter in eV (default: 2.7). |
+| **TB_GAMMA1** | `<value>` | Interlayer coupling parameter in eV (default: 0.48). |
+
+### KPOINTS formats
+
+The `readKPOINTS` routine supports two VASP-like formats:
+
+- **Line mode** for band paths (`JOB B`), where the file provides path endpoints.
+- **Automatic mesh mode** for DOS and EELS (`JOB D` and `JOB E`), for example:
+  ```plaintext
+  Gamma-centered mesh for DOS
+  0
+  G
+  12 12 1
+  0.0 0.0 0.0
+  ```
+
+Explicit weighted k-point lists are not currently used by the calculation routines.
+
+### Example input.in for band calculation
+```plaintext
+JOB B
+FPOSCAR cont.vasp
+FKPOINTS KPOINTS.band
+FEIGEN tb_band.dat
+IBAND 1 20
+NCACHE 1
+```
+
+Example `KPOINTS.band`:
+```plaintext
+High-symmetry path
+40
+Line-mode
+Reciprocal
+0.000000 0.000000 0.000000  ! Gamma
+0.333333 0.333333 0.000000  ! K
+0.333333 0.333333 0.000000  ! K
+0.500000 0.000000 0.000000  ! M
+0.500000 0.000000 0.000000  ! M
+0.000000 0.000000 0.000000  ! Gamma
+```
+
+### Example input.in for DOS calculation
+```plaintext
+JOB D
+FPOSCAR cont.vasp
+FKPOINTS KPOINTS.dos
+FDOS tb_dos.dat
+IBAND 1 20
+SIGMA 0.05
+NEDOS 2001
+ERANGE -3.0 3.0
+DOS_NORMALIZE .true.
+GAUSSIAN_CUTOFF 5.0
+NCACHE 1
+```
+
+Example `KPOINTS.dos`:
+```plaintext
+Gamma-centered mesh for DOS
+0
+G
+60 60 1
+0.0 0.0 0.0
+```
 
 ### Example input.in for EELS calculation
 ```plaintext
