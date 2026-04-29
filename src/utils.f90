@@ -238,8 +238,8 @@ contains
         real(prec), intent(in) :: epsilon, sigma, cutoff
         real(prec), intent(in) :: energy_grid(:)
         real(prec), intent(inout) :: dos(:)
-        integer :: i, n
-        real(prec) :: arg, prefactor, delta_e
+        integer :: i, n, i_start, i_end
+        real(prec) :: arg, prefactor, delta_e, dE, e_min, e_max
 
         n = size(energy_grid)
         if (cutoff <= 0.0_prec) then
@@ -252,13 +252,31 @@ contains
         else
             ! Cutoff mode: only compute points where |E-ε| < cutoff*σ
             prefactor = 1.0_prec / (sigma * sqrt(pi))
-            do i = 1, n
-                delta_e = energy_grid(i) - epsilon
-                if (abs(delta_e) < cutoff * sigma) then
+            if (n > 1) then
+                dE = energy_grid(2) - energy_grid(1)
+            else
+                dE = 0.0_prec
+            end if
+
+            if (dE > 0.0_prec) then
+                e_min = epsilon - cutoff * sigma
+                e_max = epsilon + cutoff * sigma
+                i_start = max(1, ceiling((e_min - energy_grid(1)) / dE) + 1)
+                i_end = min(n, floor((e_max - energy_grid(1)) / dE) + 1)
+                do i = i_start, i_end
+                    delta_e = energy_grid(i) - epsilon
                     arg = delta_e / sigma
                     dos(i) = dos(i) + prefactor * exp(-arg*arg)
-                end if
-            end do
+                end do
+            else
+                do i = 1, n
+                    delta_e = energy_grid(i) - epsilon
+                    if (abs(delta_e) < cutoff * sigma) then
+                        arg = delta_e / sigma
+                        dos(i) = dos(i) + prefactor * exp(-arg*arg)
+                    end if
+                end do
+            end if
         end if
     end subroutine add_gaussian_to_dos
 

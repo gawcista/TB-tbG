@@ -68,10 +68,11 @@ contains
         integer, intent(in) :: total_size, nprocs
         integer, intent(out), allocatable :: counts(:), displs(:)
         integer, intent(out), allocatable, optional :: ngroups(:)
-        integer :: base_load, remainder, i, n_groups
+        integer :: base_load, remainder, i, cache_size
 
         if (.not. allocated(counts)) allocate(counts(nprocs))
         if (.not. allocated(displs)) allocate(displs(nprocs))
+        cache_size = get_cache_size()
         
         base_load = total_size / nprocs
         remainder = mod(total_size, nprocs)
@@ -93,20 +94,25 @@ contains
             displs(i) = displs(i-1) + counts(i-1)
         end do
 
-        if (present(ngroups) .and. ncache>0) then
+        if (present(ngroups)) then
             if (.not. allocated(ngroups)) allocate(ngroups(nprocs))
             do i = 1, nprocs
-                n_groups = counts(i) / ncache
-                if (mod(counts(i), ncache) /= 0) then
-                    ngroups(i) = n_groups + 1
-                else
-                    ngroups(i) = n_groups
-                end if
+                ngroups(i) = (counts(i) + cache_size - 1) / cache_size
             end do
         end if
 
 
     end subroutine calculate_workload
+
+    integer function get_cache_size() result(cache_size)
+        use constants, only: ncache
+
+        if (ncache > 0) then
+            cache_size = ncache
+        else
+            cache_size = 1
+        end if
+    end function get_cache_size
 
 subroutine calculate_klist_mpi(klist,eig,wavef,tag)
         use constants, only: prec,ncache,nbands,nions,nproc,rank,timer_mpi,timer_cpu
@@ -124,7 +130,7 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
         real(prec), allocatable :: eig_group(:,:)
         complex(prec), allocatable :: wavef_group(:,:,:)
         real(prec), allocatable :: klist_local(:,:), klist_group(:,:)
-        integer :: ngroups, maxgroups, igroup, group_start, group_end, group_size
+        integer :: ngroups, maxgroups, igroup, group_start, group_end, group_size, cache_size
         integer :: i, j
         type(MPI_Status) :: mpi_status
         integer :: i_nkpts_local, i_ik_start, i_group_start_local, i_group_end_local, i_group_size, i_group_start_global
@@ -164,12 +170,13 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
 
         ngroups = ngroups_all(rank+1)
         maxgroups = maxval(ngroups_all)
+        cache_size = get_cache_size()
         
         do igroup = 1, maxgroups
             if (timer_mpi) call cpu_time(t_mpi)
             if (igroup <= ngroups) then
-                group_start = (igroup - 1) * ncache + 1
-                group_end = min(igroup * ncache, nkpts_local)
+                group_start = (igroup - 1) * cache_size + 1
+                group_end = min(igroup * cache_size, nkpts_local)
                 group_size = group_end - group_start + 1
                 
                 allocate(klist_group(group_size, 3))
@@ -199,8 +206,8 @@ subroutine calculate_klist_mpi(klist,eig,wavef,tag)
                     if (igroup <= ngroups_all(i+1)) then
                         i_nkpts_local = counts(i+1)
                         i_ik_start = displs(i+1) + 1
-                        i_group_start_local = (igroup - 1) * ncache + 1
-                        i_group_end_local = min(igroup * ncache, i_nkpts_local)
+                        i_group_start_local = (igroup - 1) * cache_size + 1
+                        i_group_end_local = min(igroup * cache_size, i_nkpts_local)
                         i_group_size = i_group_end_local - i_group_start_local + 1
                         i_group_start_global = i_ik_start + i_group_start_local - 1
                         
@@ -314,15 +321,15 @@ subroutine calculate_eels_mpi(q_list,tag)
     use constants, only: f_kpoint,prec,basis_rec,rank,nproc,ncache,nomega,omegalist,timer_cpu,timer_mpi,nbands,eels_mode,iband,write_matrix,f_matrix
     use utils,only: cross2d,k2cart_list,k2cart_list,k2frac_list
     use eels, only: calculate_IPF_klist,calculate_eels
-    type(MPI_Status) :: mpi_status
     real(prec),intent(in) :: q_list(:,:)
     real(prec), allocatable :: eloss(:,:)
     character(1), intent(in), optional :: tag
     real(prec),allocatable :: klist(:,:),klist_local(:,:),klist_group(:,:),q_list_frac(:,:),q_list_cart(:,:)
     integer,allocatable :: counts(:), displs(:), ngroups_all(:)
-    integer :: i,nkpts,nqpts,nkpts_local,ik_start,ik_end,ngroups,ierr
+    integer :: nkpts,nqpts,nkpts_local,ik_start,ik_end,ngroups,ierr
     integer :: igroup,group_start,group_end,group_size
-    complex(prec),allocatable :: IPF(:,:),IPF_group(:,:),IPF_recv(:,:)
+    integer :: cache_size
+    complex(prec),allocatable :: IPF(:,:),IPF_local(:,:),IPF_group(:,:)
     real(prec) :: dS,t_start,t_end,t_mpi
     complex(prec), allocatable :: matrix_contrib_local(:,:,:,:), matrix_contrib_global(:,:,:,:)
     complex(prec), allocatable :: matrix_contrib_group(:,:,:,:)
@@ -385,12 +392,15 @@ subroutine calculate_eels_mpi(q_list,tag)
             matrix_contrib_global = (0.0_prec, 0.0_prec)
         end if
     end if
+    allocate(IPF_local(nomega,nqpts))
+    IPF_local = (0.0_prec, 0.0_prec)
     if (write_matrix) then
         allocate(matrix_contrib_local(nbands, nbands, nomega, nqpts))
         matrix_contrib_local = (0.0_prec, 0.0_prec)
     end if
 
     ngroups = ngroups_all(rank + 1)
+    cache_size = get_cache_size()
     write(*, '(4X,A,I4,1X,A,I4,1X,A,1X,I4,1X,A)') "[EELS] Rank", rank,"calculating", nkpts_local, "kpoints in", ngroups, "groups"
 
     do igroup = 1, maxval(ngroups_all)
@@ -398,8 +408,8 @@ subroutine calculate_eels_mpi(q_list,tag)
         ! working part
         if (igroup <= ngroups) then
             ! get group kpoints from local 
-            group_start = (igroup - 1) * ncache + 1
-            group_end = min(igroup * ncache, nkpts_local)
+            group_start = (igroup - 1) * cache_size + 1
+            group_end = min(igroup * cache_size, nkpts_local)
             group_size = group_end - group_start + 1
             allocate(klist_group(group_size, 3))
             klist_group = klist_local(group_start:group_end, :)
@@ -416,23 +426,8 @@ subroutine calculate_eels_mpi(q_list,tag)
             else
                 call calculate_IPF_klist(omegalist, klist_group, q_list_frac, IPF_group)
             end if
+            IPF_local = IPF_local + IPF_group
             deallocate(klist_group)
-        end if
-        
-        if (rank /= 0) then
-            ! send result to rank0
-            if (igroup <= ngroups) call MPI_Send(IPF_group, nomega * nqpts, MPI_DOUBLE_COMPLEX, 0, igroup, MPI_COMM_WORLD, ierr)
-        else ! rank0: recieve
-            do i = 1, nproc - 1
-                if (igroup <= ngroups_all(i + 1)) then
-                    allocate(IPF_recv(nomega,nqpts))
-                    call MPI_Recv(IPF_recv, nomega*nqpts, MPI_DOUBLE_COMPLEX, i, igroup, MPI_COMM_WORLD, mpi_status, ierr)
-                    IPF = IPF + IPF_recv
-                    deallocate(IPF_recv)
-                end if
-            end do
-            ! add local IPF calculated on rank0
-            if (igroup <= ngroups) IPF = IPF + IPF_group
         end if
 
         if (allocated(IPF_group)) deallocate(IPF_group)
@@ -446,6 +441,9 @@ subroutine calculate_eels_mpi(q_list,tag)
     end do
     
     deallocate(klist_local, counts, displs, ngroups_all)
+
+    call MPI_Reduce(IPF_local, IPF, nomega*nqpts, MPI_DOUBLE_COMPLEX, &
+                    MPI_SUM, 0, MPI_COMM_WORLD, ierr)
 
     ! Reduce matrix contributions from all processes if needed
     if (write_matrix) then
@@ -470,6 +468,8 @@ subroutine calculate_eels_mpi(q_list,tag)
         end if
     end if
 
+    deallocate(IPF_local)
+
 end subroutine calculate_eels_mpi
 
     subroutine calculate_dos_mpi()
@@ -482,6 +482,18 @@ end subroutine calculate_eels_mpi
 
         if (rank == 0) then
             write(*,"(A)") "[DOS] Starting DOS calculation"
+            if (nedos < 2) then
+                write(*,"(A)") "[DOS] Error: NEDOS must be greater than 1"
+                call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            if (sigma_dos <= 0.0_prec) then
+                write(*,"(A)") "[DOS] Error: SIGMA must be positive"
+                call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
+            if (erange(2) <= erange(1)) then
+                write(*,"(A)") "[DOS] Error: ERANGE upper bound must be greater than lower bound"
+                call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
             ! Generate energy grid
             allocate(energy_grid(nedos))
             do i = 1, nedos
@@ -497,7 +509,15 @@ end subroutine calculate_eels_mpi
                 ! Try reading file first, generate default mesh if fails
                 call readKPOINTS(f_kpoint, klist_frac)
             end if
+            if (.not. allocated(klist_frac)) then
+                write(*,"(A)") "[DOS] Error: no k-points were read"
+                call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
             nkpts = size(klist_frac,1)
+            if (nkpts <= 0) then
+                write(*,"(A)") "[DOS] Error: no k-points were read"
+                call MPI_Abort(MPI_COMM_WORLD, 1, ierr)
+            end if
             write(*,"(A,I8)") "[DOS] Number of k-points: ", nkpts
         end if
 
@@ -540,7 +560,7 @@ end subroutine calculate_eels_mpi
         integer,allocatable :: counts(:), displs(:), ngroups_all(:)
         real(prec), allocatable :: eig_group(:,:)
         real(prec), allocatable :: klist_local(:,:), klist_group(:,:)
-        integer :: ngroups, maxgroups, igroup, group_start, group_end, group_size
+        integer :: ngroups, maxgroups, igroup, group_start, group_end, group_size, cache_size
         integer :: i, j, iband
         type(MPI_Status) :: mpi_status
         integer :: i_nkpts_local, i_ik_start, i_group_start_local, i_group_end_local, i_group_size, i_group_start_global
@@ -579,12 +599,13 @@ end subroutine calculate_eels_mpi
 
         ngroups = ngroups_all(rank+1)
         maxgroups = maxval(ngroups_all)
+        cache_size = get_cache_size()
 
         do igroup = 1, maxgroups
             if (timer_mpi) call cpu_time(t_mpi)
             if (igroup <= ngroups) then
-                group_start = (igroup - 1) * ncache + 1
-                group_end = min(igroup * ncache, nkpts_local)
+                group_start = (igroup - 1) * cache_size + 1
+                group_end = min(igroup * cache_size, nkpts_local)
                 group_size = group_end - group_start + 1
 
                 allocate(klist_group(group_size, 3))
