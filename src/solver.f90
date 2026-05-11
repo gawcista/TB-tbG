@@ -78,7 +78,7 @@ end subroutine compute_eig
         liwork = -1
 
         call zheevr(jobz, 'I', 'U', nions, Htmp, max(1, nions), vl, vu, iband(1), iband(2), abstol, &
-                    m, eig_tmp, z, max(1, nions), isuppz, workq, lwork, rworkq, lrwork, &
+                    m, eig_tmp, z, size(z,1), isuppz, workq, lwork, rworkq, lrwork, &
                     iworkq, liwork, info)
 
         lwork = max(1, int(real(workq(1))))
@@ -108,7 +108,7 @@ end subroutine compute_eig
         vu = 0.0_8
 
         call zheevr(jobz, 'I', 'U', nions, Hk, max(1, nions), vl, vu, iband(1), iband(2), abstol, &
-                    m, eig, z, max(1, nions), isuppz, work8, size(work8), rwork8, size(rwork8), &
+                    m, eig, z, size(z,1), isuppz, work8, size(work8), rwork8, size(rwork8), &
                     iwork, size(iwork), info)
 
         if (info /= 0) then
