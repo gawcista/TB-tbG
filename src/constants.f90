@@ -18,7 +18,7 @@ module constants
     ! geometric parameters (tbG)
     real(prec), parameter :: a0 = 2.4684713048999796_prec ! lattice constant (AA)
     real(prec), parameter :: a_d = a0/3_prec**0.5_prec ! C-C distance (AA)
-    real(prec), parameter :: d0 = 3.380180130823483_prec ! layer distance (AA)
+    real(prec), public :: d0 = 3.380180130823483_prec ! layer distance (AA)
     real(prec), parameter :: l_c = 0.265_prec ! cutoff ratio (AA)
     real(prec), parameter :: r_c = a0*2.5_prec ! cutoff distance
     ! geometric parameters (plasmon)
@@ -28,7 +28,6 @@ module constants
     real(prec) :: temperature = 300
     ! decay constants
     real(prec), parameter :: f_decay = log(0.1_prec)/(a_d-a0)
-    real(prec), parameter :: q_sigma = d0 * f_decay
     real(prec), parameter :: q_pi = a_d * f_decay
 
     ! global variants

@@ -14,13 +14,14 @@ contains
     end function f_cutoff
 
     function tbg_hopping(r_cart) result(t)
-        use constants, only: prec, gamma0,gamma1,q_pi,q_sigma,d0,a_d
+        use constants, only: prec, gamma0,gamma1,q_pi,d0,a_d,f_decay
         real(prec), intent(in) :: r_cart(3)
-        real(prec) :: t,V_pi,V_sigma,F_c,n,r
+        real(prec) :: t,V_pi,V_sigma,F_c,n,r,q_sigma
 
         r = NORM2(r_cart)
         n = r_cart(3)/r
         F_c = f_cutoff(r)
+        q_sigma = d0 * f_decay
         V_pi = -gamma0*exp(q_pi*(1.0_prec-r/a_d))*F_c
         V_sigma = gamma1*exp(q_sigma*(1.0_prec-r/d0))*F_c
         t = n**2*V_sigma + (1.0_prec-n**2)*V_pi

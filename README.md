@@ -144,6 +144,7 @@ All keywords are read by the parser in `src/parser.f90`. Lines starting with `!`
 | **TB_ONSITE** | `<value>` | Tight-binding onsite energy in eV (default: -0.78). |
 | **TB_GAMMA0** | `<value>` | Intralayer nearest-neighbor hopping parameter in eV (default: 2.7). |
 | **TB_GAMMA1** | `<value>` | Interlayer coupling parameter in eV (default: 0.48). |
+| **TB_D0** | `<value>` | Interlayer distance parameter in Angstrom used in the interlayer hopping decay (default: 3.380180130823483). |
 
 ### KPOINTS formats
 

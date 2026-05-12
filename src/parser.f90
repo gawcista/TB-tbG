@@ -105,6 +105,8 @@ contains
                             read(line,*,iostat=io) tmp,gamma0
                         case('TB_GAMMA1')
                             read(line,*,iostat=io) tmp,gamma1
+                        case('TB_D0')
+                            read(line,*,iostat=io) tmp,d0
                     end select
                                  
                 end if
